@@ -18,6 +18,7 @@ struct PhysicsConfig
     double         base_dt_s    = 3600.0;       ///< sim seconds per real second at 1x warp
     int            sub_steps    = 8;
     IntegratorType integrator   = IntegratorType::RK4;
+    double         stellar_evolution_speed = 1.0;  ///< Multiplier for fusion and aging
 };
 
 // ── Diagnostics snapshot ──────────────────────────────────────────────────────

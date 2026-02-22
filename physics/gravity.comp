@@ -15,7 +15,10 @@ struct BodyData {
     int   is_passive;
     int   kind;
     float radius;
-    float padding; // Match C++ 48-byte struct
+    float magnetic_field_T;
+    float radiation_pressure;
+    float solar_wind_power;
+    float padding; // 64 bytes total
 };
 
 layout(std430, binding = 0) buffer BodiesBuffer {
@@ -31,11 +34,19 @@ layout(location = 1) uniform float u_G;
 layout(location = 2) uniform float u_softening2;
 
 // Shared memory for tiling blocks of bodies
-shared vec4 shared_bodies[256]; // pos.x, pos.y, mass, is_passive (as float 0/1)
+shared vec4 shared_pos_mass[256];     // xy: pos, z: mass, w: (alive << 1 | is_passive)
+shared vec4 shared_stellar[256];      // x: radiation, y: wind, z: radius, w: kind
 
 void main() {
     uint i = gl_GlobalInvocationID.x;
-    vec2 pos_i = (i < u_num_bodies) ? bodies[i].pos : vec2(0.0);
+    
+    // My own body data
+    bool  i_alive = (i < u_num_bodies) ? (bodies[i].alive != 0) : false;
+    vec2  pos_i   = (i < u_num_bodies) ? bodies[i].pos : vec2(0.0);
+    float mass_i  = (i < u_num_bodies) ? bodies[i].mass : 0.0;
+    float r_i     = (i < u_num_bodies) ? bodies[i].radius : 0.0;
+    float b_i     = (i < u_num_bodies) ? bodies[i].magnetic_field_T : 0.0;
+    
     vec2 total_accel = vec2(0.0);
 
     uint tile_size = gl_WorkGroupSize.x;
@@ -46,38 +57,65 @@ void main() {
         uint j_load = t * tile_size + gl_LocalInvocationIndex;
         if (j_load < u_num_bodies) {
             BodyData b = bodies[j_load];
-            shared_bodies[gl_LocalInvocationIndex] = vec4(b.pos, b.mass, float(b.alive > 0 && b.is_passive == 0));
+            shared_pos_mass[gl_LocalInvocationIndex] = vec4(b.pos, b.mass, float((b.alive != 0 ? 2 : 0) | (b.is_passive != 0 ? 1 : 0)));
+            shared_stellar[gl_LocalInvocationIndex]  = vec4(b.radiation_pressure, b.solar_wind_power, b.radius, float(b.kind));
         } else {
-            shared_bodies[gl_LocalInvocationIndex] = vec4(0.0, 0.0, 0.0, 0.0);
+            shared_pos_mass[gl_LocalInvocationIndex] = vec4(0.0);
+            shared_stellar[gl_LocalInvocationIndex]  = vec4(0.0);
         }
 
         memoryBarrierShared();
         barrier();
 
-        // Accumulate gravity from this tile
-        if (i < u_num_bodies && bodies[i].alive != 0) {
+        // Accumulate gravity and stellar forces from this tile
+        if (i < u_num_bodies && i_alive) {
             for (uint j = 0; j < tile_size; ++j) {
-                vec4 other = shared_bodies[j];
-                // other.w is 1.0 if alive and NOT passive
-                if (other.w < 0.5) continue; 
+                vec4 other_pm = shared_pos_mass[j];
+                int  flags    = int(other_pm.w);
+                if ((flags & 2) == 0) continue; // Not alive
                 
                 uint global_j = t * tile_size + j;
                 if (i == global_j) continue;
 
-                vec2 r_ij = other.xy - pos_i;
-                float dist2 = r_ij.x * r_ij.x + r_ij.y * r_ij.y + u_softening2;
-                float inv_dist3 = 1.0 / (dist2 * sqrt(dist2));
+                vec2  r_ij  = other_pm.xy - pos_i;
+                float dist2 = dot(r_ij, r_ij);
+                float r2_soft = dist2 + u_softening2;
+                float r_soft  = sqrt(r2_soft);
                 
-                total_accel += r_ij * (u_G * other.z * inv_dist3);
+                // 1. Gravity
+                if ((flags & 1) == 0) { // Other is NOT passive
+                    float inv_dist3 = 1.0 / (r2_soft * r_soft);
+                    total_accel += r_ij * (u_G * other_pm.z * inv_dist3);
+                }
+
+                // 2. Stellar Forces
+                vec4 st = shared_stellar[j];
+                if (int(st.w) == 0 && mass_i > 0.0) { // Other is STAR
+                    float dist = max(r_soft, st.z + r_i);
+                    vec2  dir  = r_ij * (-1.0 / dist);
+                    float area = 3.14159 * r_i * r_i;
+                    
+                    // Radiation Pressure
+                    float AU = 1.496e11;
+                    float P_rad = st.x * (AU * AU) / (dist * dist);
+                    total_accel += dir * (P_rad * area / mass_i);
+
+                    // Solar Wind
+                    if (st.y > 0.0) {
+                        float mass_density = st.y / (12.56637 * dist * dist);
+                        float a_wind = (mass_density * 450000.0 * area) / mass_i;
+                        float shield = min(1.0, b_i / 1.0e-4);
+                        total_accel += dir * (a_wind * (1.0 - shield));
+                    }
+                }
             }
         }
         
         barrier();
     }
 
-    if (i < u_num_bodies && bodies[i].alive != 0) {
+    if (i < u_num_bodies && i_alive) {
         out_accels[i] = total_accel;
-        // Also update bodies[i].accel for any potential local reads (though we prefer CPU readback from binding 1)
         bodies[i].accel = total_accel;
     }
 }

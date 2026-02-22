@@ -3,7 +3,9 @@
 // =============================================================================
 
 #include "State.h"
-#include "../sim/Presets.h"       // for RunTests bootstrap
+#include "../sim/Presets.h"
+#include "../sim/StellarEvolution.h"
+#include "../physics/Integrators.h"
 #include "../third_party/nlohmann/json.hpp"
 
 #include <fstream>
@@ -37,9 +39,20 @@ static json body_to_json(const Body& b)
         {"has_rings",         b.render.has_rings},
         {"ring_color",        b.render.ring_color}
     };
+    j["composition"] = {
+        {"hydrogen", b.composition.hydrogen},
+        {"helium",   b.composition.helium},
+        {"carbon",   b.composition.carbon},
+        {"oxygen",   b.composition.oxygen}
+    };
+    j["stellar_class"] = StellarEvolution::stellar_class_str(b.stellar_class);
+    j["temperature_K"] = b.temperature_K;
+    j["luminosity_L"]  = b.luminosity_L;
+    j["age_yr"]        = b.age_yr;
     j["flags"] = {
         {"immovable",  b.flags.immovable},
-        {"no_collide", b.flags.no_collide}
+        {"no_collide", b.flags.no_collide},
+        {"is_passive", b.flags.is_passive}
     };
     // Extra metadata
     json extra = json::object();
@@ -70,11 +83,25 @@ static Body json_to_body(const json& j)
         b.render.has_rings        = r.value("has_rings",         false);
         b.render.ring_color       = r.value("ring_color",        0xAAAAAA88u);
     }
+    if (j.contains("composition"))
+    {
+        const auto& c = j["composition"];
+        b.composition.hydrogen = c.value("hydrogen", 0.0f);
+        b.composition.helium   = c.value("helium",   0.0f);
+        b.composition.carbon   = c.value("carbon",   0.0f);
+        b.composition.oxygen   = c.value("oxygen",   0.0f);
+    }
+    b.stellar_class = StellarEvolution::stellar_class_from_str(j.value("stellar_class", "None"));
+    b.temperature_K = j.value("temperature_K", 5778.0);
+    b.luminosity_L  = j.value("luminosity_L",  1.0);
+    b.age_yr        = j.value("age_yr",        0.0);
+
     if (j.contains("flags"))
     {
         const auto& f = j["flags"];
         b.flags.immovable  = f.value("immovable",  false);
         b.flags.no_collide = f.value("no_collide", false);
+        b.flags.is_passive = f.value("is_passive", false);
     }
     if (j.contains("extra"))
     {
@@ -93,7 +120,8 @@ static json cfg_to_json(const PhysicsConfig& c)
         {"softening_m",  c.softening_m},
         {"base_dt_s",    c.base_dt_s},
         {"sub_steps",    c.sub_steps},
-        {"integrator",   integrator_name(c.integrator)}
+        {"integrator",   integrator_name(c.integrator)},
+        {"stellar_evolution_speed", c.stellar_evolution_speed}
     };
 }
 
@@ -105,6 +133,7 @@ static PhysicsConfig json_to_cfg(const json& j)
     c.base_dt_s   = j.value("base_dt_s",   3600.0);
     c.sub_steps   = j.value("sub_steps",   8);
     c.integrator  = integrator_from_str(j.value("integrator", "RK4"));
+    c.stellar_evolution_speed = j.value("stellar_evolution_speed", 1.0);
     return c;
 }
 

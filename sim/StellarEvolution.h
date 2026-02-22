@@ -35,16 +35,18 @@ namespace StellarEvolution
 
     /// Evolve a single body by `dt_s` seconds of simulation time.
     /// Returns true if the body's kind changed (triggers visual update).
-    bool tick(Body& b, double dt_s);
+    bool tick(Body& b, double dt_s, double speed_mult = 1.0);
 
     /// Evolve all bodies in the simulation.
-    void tick_all(std::vector<Body>& bodies, double dt_s);
+    void tick_all(std::vector<Body>& bodies, double dt_s, double speed_mult = 1.0);
 
     /// Compute a body's mean density (kg/m³). Returns 0 if radius==0.
     double density(const Body& b);
 
     /// Get debug string for stellar stage
     const char* stellar_class_str(StellarClass sc);
+
+    StellarClass stellar_class_from_str(const std::string& s);
 
     /// Convert temperature to blackbody RGBA color
     uint32_t temperature_to_color(double T_K);

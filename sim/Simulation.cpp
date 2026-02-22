@@ -49,7 +49,6 @@ void Simulation::step_sim(double sim_dt_s)
     }
 
     if (!source_idx.empty()) {
-    if (!source_idx.empty()) {
         for (size_t i : source_idx) {
             // For large N, we only check a subset of 'j' to avoid O(N^2)
             size_t step = (nb > 2000) ? nb / 100 : 1; 
@@ -158,7 +157,7 @@ void Simulation::step_sim(double sim_dt_s)
     }), m_bodies.end());
 
     // Phase 25A: Stellar Evolution — run once per physics batch
-    StellarEvolution::tick_all(m_bodies, sim_dt_s);
+    StellarEvolution::tick_all(m_bodies, sim_dt_s, m_cfg.stellar_evolution_speed);
 
     sweep_dead_bodies();
     m_sim_time_s += sim_dt_s;

@@ -105,9 +105,14 @@ void InputHandler::load_preset(PresetType p)
     case PresetType::GalaxySmall:
         zoom = 6e15; // Adjusted for the 20,000 AU scale
         break;
-    case PresetType::StellarDeath:
+    case static_cast<PresetType>(PresetType::StellarDeath):
         zoom = 4e11; // 400M km (Inner system scale)
         m_sim.set_time_warp(10.0); // Start fairly fast
+        {
+            auto cfg = m_sim.config();
+            cfg.stellar_evolution_speed = 50000000.0; // ~1.5 years per second
+            m_sim.set_config(cfg);
+        }
         break;
     }
 

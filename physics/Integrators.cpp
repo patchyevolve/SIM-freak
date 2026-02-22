@@ -9,6 +9,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -431,6 +432,35 @@ bool RunTests()
         double r_end = bodies[1].pos.norm();
         // std::cout << "  [Debug] Drag Test End: r=" << r_end << " decay=" << (r_start - r_end) << "\n";
         check("drag_orbit_decay", r_end < r_start);
+    }
+
+    // Phase 29C: Solar Wind & Radiation Pressure Test
+    {
+        Body star;
+        star.kind = BodyKind::Star;
+        star.mass_kg = 1.0; star.radius_m = 6.957e8; // Tiny mass to allow push visibility
+        star.pos = {0,0}; star.vel = {0,0};
+        star.solar_wind_power = 1e15;    // Extremely high for test visibility
+        star.radiation_pressure = 1.0;   // 1 Pa at 1 AU (high)
+        star.alive = true;
+
+        Body rock;
+        rock.mass_kg = 1e20; rock.radius_m = 1e6;
+        rock.pos = { 1.5e11, 0 }; rock.vel = { 0, 0 }; // Static start
+        rock.alive = true;
+
+        Body shielded = rock;
+        shielded.magnetic_field_T = 1.0e-4; // 1 Gauss shield
+        shielded.id = "shielded";
+
+        std::vector<Body> b_wind = { star, rock };
+        Integrators::step_rk4(b_wind, 3600.0, G, soft);
+        // Without gravity (mass of rock is small), it should definitely move +X
+        check("solar_wind_push", b_wind[1].pos.x > 1.5e11);
+
+        std::vector<Body> b_shield = { star, shielded };
+        Integrators::step_rk4(b_shield, 3600.0, G, soft);
+        check("magnetic_shielding_works", b_shield[1].pos.x < b_wind[1].pos.x);
     }
 
     return ok;

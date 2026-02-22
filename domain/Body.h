@@ -81,6 +81,7 @@ struct RenderProps
 
     // Phase 20: Black Hole properties
     float    event_horizon_radius_m = 0.0f; 
+    float    accretion_disk_radius_m = 0.0f; 
     uint32_t disk_color        = 0xFFAA44FF; 
     uint32_t magnetosphere_color = 0x64C8FF44; // Subtle blue glow
     float    aurora_intensity  = 0.0f;       // 0..1 based on solar wind interaction
@@ -120,7 +121,7 @@ struct Body
     StellarClass  stellar_class = StellarClass::None;   ///< For stars
     double        temperature_K = 5778.0;               ///< Surface temperature (K)
     double        luminosity_L  = 1.0;                  ///< In Solar luminosities
-    double        age_s         = 0.0;                  ///< Simulated age in seconds
+    double        age_yr        = 0.0;                  ///&lt; Simulated age in years
     double        spin_deg      = 0.0;                  ///< Visual spin angle (asteroids/moons)
     double        magnetic_field_T = 0.0;               ///< Magnetic field strength (Tesla)
     double        radiation_pressure = 0.0;             ///< For stars: Pa at 1 AU

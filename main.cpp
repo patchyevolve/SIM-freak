@@ -62,8 +62,8 @@ static void print_body(const Body& b, double G = 6.6743e-11)
               << "  r="       << format_sci(b.radius_m)
               << "  pos=("    << format_sci(b.pos.x, 2)
               <<  ", "        << format_sci(b.pos.y, 2) << ")"
-              << "  v="       << format_sci(b.speed())
-              << "  g_surf="  << format_sci(b.surface_gravity(G))
+              << "  mag="     << format_sci(b.magnetic_field_T) << " T"
+              << "  wind="    << format_sci(b.solar_wind_power) << " kg/s"
               << "\n";
 }
 

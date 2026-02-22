@@ -1,0 +1,7 @@
+﻿MSBuild version 18.3.0-release-26070-10+3972042b7 for .NET Framework
+
+  Gravity.cpp
+D:\codeWorks\simPUS\physics\Gravity.cpp(62,28): error C2589: '(': illegal token on right side of '::' [D:\codeWorks\simPUS\simPUS\simPUS.vcxproj]
+D:\codeWorks\simPUS\physics\Gravity.cpp(62,28): error C2059: syntax error: ')' [D:\codeWorks\simPUS\simPUS\simPUS.vcxproj]
+D:\codeWorks\simPUS\physics\Gravity.cpp(83,34): error C2589: '(': illegal token on right side of '::' [D:\codeWorks\simPUS\simPUS\simPUS.vcxproj]
+D:\codeWorks\simPUS\physics\Gravity.cpp(83,34): error C2059: syntax error: ')' [D:\codeWorks\simPUS\simPUS\simPUS.vcxproj]

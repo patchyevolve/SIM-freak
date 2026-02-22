@@ -26,6 +26,11 @@ void main() {
     float h = (dist - surface_dist) / (1.0 - surface_dist);
     float density = exp(-h * 4.0) * (1.0 - h);
     
+    // Phase 29D: Subtle atmospheric shimmering / air currents
+    float shimmer = sin(dist * 20.0 - time * 1.5) * 0.05 + 
+                    sin(atan(uv.y, uv.x) * 10.0 + time * 0.8) * 0.03;
+    density *= (1.0 + shimmer);
+
     // Rayleigh-ish scattering: more blue/cyan at edges, thicker/richer at base
     vec3 col = atmos_color.rgb;
     

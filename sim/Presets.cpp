@@ -469,7 +469,7 @@ std::vector<Body> make_stellar_death(double G)
     star.render = { rgb(255, 100, 50), 15.0f, false, true };
     
     // Set age to 10 billion years and hydrogen to just above depletion threshold
-    star.age_s = 10.0 * 365.25 * 24.0 * 3600.0 * 1e9;
+    star.age_yr = 10.0e9; 
     star.composition.hydrogen = 0.035f; // Threshold is 0.03f
     star.composition.helium = 0.95f;
     star.stellar_class = StellarClass::MainSequence;

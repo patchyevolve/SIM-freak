@@ -23,7 +23,10 @@ struct GpuBodyData {
     int   is_passive;
     int   kind;
     float radius;
-    float padding; // 48 bytes total (8-byte aligned)
+    float magnetic_field_T;
+    float radiation_pressure;
+    float solar_wind_power;
+    float padding; // 64 bytes total (power of 2 alignment)
 };
 
 static GLuint g_compute_program = 0;
@@ -44,10 +47,45 @@ Vec2 acceleration_from(const Body& i, const Body& j,
                        double G, double softening_m)
 {
     Vec2   r_ij  = j.pos - i.pos;                      // vector from i toward j
-    double r2    = r_ij.norm_sq() + softening_m * softening_m; // softened r²
-    double r3    = r2 * std::sqrt(r2);                  // r² * r  (= r_softened^3)
-    double coeff = G * j.mass_kg / r3;
-    return r_ij * coeff;                                // a_i contribution from j
+    double dist2 = r_ij.norm_sq();
+    double r2    = dist2 + softening_m * softening_m; 
+    double r     = std::sqrt(r2);
+    double r3    = r2 * r;
+    
+    // 1. Gravity (Newtonian)
+    double g_coeff = G * j.mass_kg / r3;
+    Vec2 acc = r_ij * g_coeff;
+
+    // 2. Stellar Forces (from j if j is a star)
+    if (j.kind == BodyKind::Star && i.mass_kg > 0)
+    {
+        double dist = (std::max)(r, j.radius_m + i.radius_m);
+        Vec2 dir = r_ij * (-1.0 / dist); // unit vector away from star j
+
+        // A. Radiation Pressure
+        // radiation_pressure is Pa at 1 AU (1.496e11 m)
+        double AU = 1.496e11;
+        double P_rad = j.radiation_pressure * (AU * AU) / (dist * dist);
+        double area = 3.14159265 * i.radius_m * i.radius_m;
+        double a_rad = (P_rad * area) / i.mass_kg;
+        acc += dir * a_rad;
+
+        // B. Solar Wind
+        // solar_wind_power is kg/s
+        if (j.solar_wind_power > 0.0)
+        {
+            const double v_wind = 450000.0; // 450 km/s average
+            double mass_density = j.solar_wind_power / (4.0 * 3.14159265 * dist * dist);
+            double a_wind = (mass_density * v_wind * area) / i.mass_kg;
+
+            // Magnetic Shielding: 
+            // 1.0e-4 T (1 Gauss) is a strong planetary shield
+            double shield = (std::min)(1.0, i.magnetic_field_T / 1.0e-4);
+            acc += dir * (a_wind * (1.0 - shield));
+        }
+    }
+
+    return acc;
 }
 
 void compute_accelerations(std::vector<Body>& bodies,
@@ -141,12 +179,15 @@ void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
         s_gpu_data[i] = {
             (float)b.pos.x, (float)b.pos.y,
             (float)b.vel.x, (float)b.vel.y,
-            0.0f, 0.0f, // ax, ay updated by shader
+            0.0f, 0.0f,
             (float)b.mass_kg,
             b.alive ? 1 : 0,
             b.flags.is_passive ? 1 : 0,
             (int)b.kind,
             (float)b.radius_m,
+            (float)b.magnetic_field_T,
+            (float)b.radiation_pressure,
+            (float)b.solar_wind_power,
             0.0f
         };
     }
