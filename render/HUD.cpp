@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "HUD.h"
+#include "../physics/Gravity.h"
 #include <sstream>
 #include <iomanip>
 #include <cmath>
@@ -51,6 +52,7 @@ void HUD::update(const Simulation& sim,
         oss << "Time warp  " << std::setprecision(1) << sim.time_warp() << "x\n";
         oss << "Bodies     " << diag.body_count << "\n";
         oss << "Step       " << diag.step_count << "\n";
+        oss << "GPU Phys   " << (Gravity::IsGpuReady() ? "ON (GPU)" : "OFF (CPU)") << "\n";
 
         // Energy drift — guard against NaN/Inf; skip when energy not computed (n > 500)
         if (diag.energy_valid && std::abs(initial_energy_J) > 1e-100)

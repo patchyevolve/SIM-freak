@@ -314,4 +314,6 @@ bool RunTests()
     return ok;
 }
 
+bool IsGpuReady() { return g_gpu_ready; }
+
 } // namespace Gravity

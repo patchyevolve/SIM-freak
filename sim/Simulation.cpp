@@ -41,38 +41,35 @@ void Simulation::step_sim(double sim_dt_s)
 
     // Identify gravity sources (non-passive bodies)
     std::vector<size_t> source_idx;
-    source_idx.reserve(512);
+    source_idx.reserve(128); 
     for (size_t i = 0; i < nb; ++i) {
         if (!m_bodies[i].flags.is_passive && m_bodies[i].alive)
             source_idx.push_back(i);
+        if (source_idx.size() >= 128) break; // Heuristic: scan first 128 "heavy" bodies
     }
 
     if (!source_idx.empty()) {
         for (size_t i : source_idx) {
-            for (size_t j = 0; j < nb; ++j) {
+            // For large N, we only check a subset of 'j' to avoid O(N^2)
+            size_t step = (nb > 2000) ? nb / 100 : 1; 
+            for (size_t j = 0; j < nb; j += step) {
                 if (i == j || !m_bodies[j].alive) continue;
                 Vec2 d = m_bodies[i].pos - m_bodies[j].pos;
                 double r2 = d.x*d.x + d.y*d.y;
                 double mass_sum = std::max(1.0, m_bodies[i].mass_kg + m_bodies[j].mass_kg);
-                // tau = r / v_orbit approx
                 double tau = std::sqrt(r2 * std::sqrt(r2) / (G * mass_sum + 1e-10));
                 if (tau < min_tau) min_tau = tau;
             }
         }
     } else {
-        min_tau = 3600.0; // Fallback for drifting debris
+        min_tau = 3600.0;
     }
     
-    // Safety clamp: stable dt should be roughly 10% of the orbital timescale
-    // We remove the hard 'floor_dt' because it kills stability for tight systems (BHs).
     double safety_dt = std::max(0.1, min_tau * 0.1); 
-    const double MAX_dt = 3600.0; // 1 hour max
+    const double MAX_dt = 3600.0;
     double target_sub_dt = std::min(MAX_dt, safety_dt);
     
     int steps = std::max(1, (int)std::ceil(sim_dt_s / target_sub_dt));
-    
-    // Performance cap: 128 sub-steps max per frame.
-    // If time warp is too high, simulation slows down instead of exploding.
     if (steps > 128) steps = 128;
     
     double sub_dt = sim_dt_s / static_cast<double>(steps);

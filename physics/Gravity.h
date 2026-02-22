@@ -40,6 +40,7 @@ namespace Gravity
     /// GPU Management
     bool InitGPU();
     void Cleanup();
+    bool IsGpuReady();
 
     bool RunTests();
 }
