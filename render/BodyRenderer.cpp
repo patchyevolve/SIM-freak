@@ -329,10 +329,7 @@ void BodyRenderer::draw_all(sf::RenderTarget& target,
     }
 
     // 5. Execution
-    // Draw particles in a single call
-    if (particle_batch.getVertexCount() > 0) {
-        target.draw(particle_batch);
-    }
+    // Draw high detail bodies individually
 
     // Draw high detail bodies individually
     for (const auto* b : high_detail_list) {
