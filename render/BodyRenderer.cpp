@@ -292,14 +292,18 @@ void BodyRenderer::draw_all(sf::RenderTarget& target,
 
         bool is_selected = (b.id == selected_id);
         
-        if (radius > LOD_BATCH_THRESHOLD || b.kind == BodyKind::Star || b.kind == BodyKind::BlackHole || is_selected) {
+        // Stars and Black Holes are usually "high detail", but for 10,000 bodies
+        // we MUST batch the stars if they are small enough, or we drop to 1 FPS.
+        bool force_high_detail = (b.kind == BodyKind::BlackHole || is_selected);
+        bool is_large = (radius > LOD_BATCH_THRESHOLD);
+
+        if (force_high_detail || is_large) {
             high_detail_list.push_back(&b);
         } else {
-            // Batch this tiny body as a simple rectangle (Particle)
+            // Batch this tiny body (including small stars) as a simple colored quad
             sf::Color color = body_color(b, cam);
             float r = radius; 
             
-            // Add 4 vertices for the quad
             particle_batch.append(sf::Vertex({sp.x - r, sp.y - r}, color));
             particle_batch.append(sf::Vertex({sp.x + r, sp.y - r}, color));
             particle_batch.append(sf::Vertex({sp.x + r, sp.y + r}, color));

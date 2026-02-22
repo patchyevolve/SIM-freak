@@ -31,50 +31,52 @@ void Simulation::step_sim(double sim_dt_s)
 {
     if (m_bodies.empty()) { m_sim_time_s += sim_dt_s; return; }
 
-    // ── 1. Dynamic Step Limit (Optimized) ───────────────────────────────────
-    // Instead of O(N^2) scan, we use a simpler heuristic or cached value.
-    // For 2000+ bodies, the O(N^2) CPU loop alone kills performance.
+    // ── 1. Dynamic Step Limit (Balanced) ────────────────────────────────────
+    // Optimization: Instead of N^2, only check against heavy bodies (gravity sources)
+    // Most bodies in large sims (Galaxy/Nebula) are passive/light.
     
     double min_tau = 1e30;
     const double G = m_cfg.G;
     const size_t nb = m_bodies.size();
 
-    if (nb < 500) {
-        // Only do full scan for small N
-        for (size_t i = 0; i < nb; ++i) {
-            if (m_bodies[i].flags.is_passive) continue;
-            for (size_t j = i + 1; j < nb; ++j) {
-                if (m_bodies[j].flags.is_passive) continue;
+    // Identify gravity sources (non-passive bodies)
+    std::vector<size_t> source_idx;
+    source_idx.reserve(512);
+    for (size_t i = 0; i < nb; ++i) {
+        if (!m_bodies[i].flags.is_passive && m_bodies[i].alive)
+            source_idx.push_back(i);
+    }
+
+    if (!source_idx.empty()) {
+        for (size_t i : source_idx) {
+            for (size_t j = 0; j < nb; ++j) {
+                if (i == j || !m_bodies[j].alive) continue;
                 Vec2 d = m_bodies[i].pos - m_bodies[j].pos;
                 double r2 = d.x*d.x + d.y*d.y;
                 double mass_sum = std::max(1.0, m_bodies[i].mass_kg + m_bodies[j].mass_kg);
-                double tau = std::sqrt(r2 * std::sqrt(r2) / (G * mass_sum + 1.0));
+                // tau = r / v_orbit approx
+                double tau = std::sqrt(r2 * std::sqrt(r2) / (G * mass_sum + 1e-10));
                 if (tau < min_tau) min_tau = tau;
             }
         }
     } else {
-        // For large N, use a conservative floor to ensure stability of tight orbits
-        // while avoiding the O(N^2) CPU penalty.
-        // 1000s is ~16 mins, safe for most galactic/nebula scales.
-        min_tau = 1000.0; 
+        min_tau = 3600.0; // Fallback for drifting debris
     }
     
     // Safety clamp: stable dt should be roughly 10% of the orbital timescale
-    double safety_dt = std::max(1.0, min_tau * 0.1); 
-    
-    // For large GPU-simulations, we increase target_sub_dt to avoid 
-    // drowning the PCI-e bus with thousands of read-backs per frame.
-    double floor_dt = (nb > 5000) ? 3600.0 * 2.0 : 1.0; // 2 hour floor for galaxy
-    
-    const double MAX_dt = 7200.0; // 2 hours
-    double target_sub_dt = std::clamp(safety_dt, floor_dt, MAX_dt);
+    // We remove the hard 'floor_dt' because it kills stability for tight systems (BHs).
+    double safety_dt = std::max(0.1, min_tau * 0.1); 
+    const double MAX_dt = 3600.0; // 1 hour max
+    double target_sub_dt = std::min(MAX_dt, safety_dt);
     
     int steps = std::max(1, (int)std::ceil(sim_dt_s / target_sub_dt));
     
-    // Absolute cap on sub-steps to preserve frame-rate during extreme warp
+    // Performance cap: 128 sub-steps max per frame.
+    // If time warp is too high, simulation slows down instead of exploding.
     if (steps > 128) steps = 128;
     
     double sub_dt = sim_dt_s / static_cast<double>(steps);
+    m_step_count += steps;
 
     // ── Phase 21: Relativistic Dilation ─────────────────────────────────────
     const double c  = 299792458.0; 
