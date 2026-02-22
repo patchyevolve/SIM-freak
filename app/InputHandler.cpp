@@ -73,16 +73,49 @@ void InputHandler::load_preset(PresetType p)
     auto bodies = Presets::make(p, m_sim.config().G);
     for (auto& b : bodies) m_sim.add_body(b);
 
-    // ── Preset-specific Trail Tuning ─────────────────────────────────────────
-    // For high-velocity systems (Black Hole), shorten the trail to prevent
-    // multiple orbital wraps from forming a solid ring.
-    if (p == PresetType::BlackHole)
-        m_trails.max_age_s = 2.5 * 24.0 * 3600.0; // 2.5 sim-days
-    else
-        m_trails.max_age_s = TrailSystem::DEFAULT_MAX_AGE_S; // 90 days
+    // ── Preset-specific Tuning (Visuals, Time, Camera) ───────────────────────
+    
+    // Default values
+    m_trails.max_age_s = TrailSystem::DEFAULT_MAX_AGE_S; // 90 days
+    m_sim.set_time_warp(1.0);
+    double zoom = 4e9; // 4 million km (Solar System scale)
 
+    switch (p)
+    {
+    case PresetType::SolarSystem:
+        zoom = 8e9;
+        m_sim.set_time_warp(1.0); // 1s = 1s (realtime)
+        break;
+    case PresetType::BinaryStar:
+        zoom = 1e11;
+        m_sim.set_time_warp(3600.0); // 1h per sec
+        break;
+    case PresetType::Figure8:
+        zoom = 10.0;
+        m_sim.set_time_warp(1.0);
+        break;
+    case PresetType::BlackHole:
+        zoom = 2e12;
+        m_sim.set_time_warp(3600.0 * 24.0); // 1 day per sec
+        m_trails.max_age_s = 2.5 * 24.0 * 3600.0; // Shorter trails for BH
+        break;
+    case PresetType::Collision:
+        zoom = 1e11;
+        m_sim.set_time_warp(3600.0 * 12.0);
+        break;
+    case PresetType::Nebula:
+        zoom = 5e12;
+        m_sim.set_time_warp(3600.0 * 24.0 * 7.0); // 1 week per sec
+        break;
+    case PresetType::GalaxySmall:
+        zoom = 1e13; // 10,000 AU scale
+        m_sim.set_time_warp(3600.0 * 24.0 * 365.0); // 1 year per sec
+        break;
+    }
+
+    m_cam.set_zoom(zoom);
     m_sim.events.on_preset_loaded.emit({ preset_name(p), m_sim.bodies().size() });
-    std::cout << "[Preset] Loaded: " << preset_name(p) << "\n";
+    std::cout << "[Preset] Loaded: " << preset_name(p) << " (" << m_sim.bodies().size() << " bodies)\n";
 }
 
 // ── Save / Load ────────────────────────────────────────────────────────────────
@@ -153,6 +186,7 @@ InputResult InputHandler::handle_event(const sf::Event& event,
         case sf::Keyboard::Num4: load_preset(PresetType::BlackHole);   break;
         case sf::Keyboard::Num5: load_preset(PresetType::Collision);   break;
         case sf::Keyboard::Num6: load_preset(PresetType::Nebula);      break;
+        case sf::Keyboard::Num7: load_preset(PresetType::GalaxySmall); break;
 
         case sf::Keyboard::F:
         {

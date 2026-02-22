@@ -50,6 +50,18 @@ AppLoop::AppLoop(unsigned width, unsigned height)
     generate_starfield(width, height);
     load_default_preset();
 
+    // ── Event Subscriptions ──────────────────────────────────────────────────
+    
+    // Cleanup trails when a body is absorbed by a black hole
+    m_sim.events.on_bh_absorption.subscribe([this](const EvBhAbsorption& ev) {
+        m_trails.remove(ev.absorbed_id);
+    });
+
+    // Reset initial energy tracking when a new preset is loaded
+    m_sim.events.on_preset_loaded.subscribe([this](const EvPresetLoaded& ev) {
+        m_initial_energy = m_sim.diagnostics().total_energy_J;
+    });
+
     // Init GPU Gravity if possible
     if (!Gravity::InitGPU()) {
         std::cerr << "[Warning] GPU Gravity Init failed. Falling back to CPU Physics.\n";
@@ -214,19 +226,6 @@ void AppLoop::run()
             {
                 auto place_at = m_input.take_place_at();
                 m_add_dialog.open(m_cam, place_at);
-            }
-            
-            // Numerical keys for fast preset switching 
-            if (event.type == sf::Event::KeyPressed)
-            {
-                if (event.key.code == sf::Keyboard::Num7) {
-                    m_sim.clear_bodies(); m_trails.clear();
-                    auto bodies = Presets::make(PresetType::GalaxySmall); // 10k bodies
-                    for (auto& b : bodies) m_sim.add_body(b);
-                    m_initial_energy = m_sim.diagnostics().total_energy_J;
-                    m_sim.set_time_warp(10.0);
-                    m_cam.set_zoom(1e12);
-                }
             }
         }
 

@@ -53,8 +53,10 @@ void Simulation::step_sim(double sim_dt_s)
             }
         }
     } else {
-        // For large N, use a fixed or approximate safety floor
-        min_tau = 36000.0; // 10 hours floor for large simulations
+        // For large N, use a conservative floor to ensure stability of tight orbits
+        // while avoiding the O(N^2) CPU penalty.
+        // 1000s is ~16 mins, safe for most galactic/nebula scales.
+        min_tau = 1000.0; 
     }
     
     // Safety clamp: stable dt should be roughly 10% of the orbital timescale
