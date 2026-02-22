@@ -70,7 +70,13 @@ void Simulation::step_sim(double sim_dt_s)
     double target_sub_dt = std::min(MAX_dt, safety_dt);
     
     int steps = std::max(1, (int)std::ceil(sim_dt_s / target_sub_dt));
-    if (steps > 128) steps = 128;
+    
+    // Force Evaluation Budget:
+    // In Debug mode or with high body counts, the overhead of RK4 (4x copies per step)
+    // and GPU readback (1x sync per evaluation) will hang the main thread if steps > 128.
+    // For large N, we cap much more aggressively to maintain UI responsiveness.
+    int max_steps = (nb > 2500) ? 16 : 128;
+    if (steps > max_steps) steps = max_steps;
     
     double sub_dt = sim_dt_s / static_cast<double>(steps);
     m_step_count += steps;
@@ -79,15 +85,15 @@ void Simulation::step_sim(double sim_dt_s)
     const double c  = 299792458.0; 
     const double c2 = c * c;
 
+    // Collect black hole indices ONCE per frame (hoisted from sub-step loop)
+    std::vector<size_t> bh_indices;
+    bh_indices.reserve(8);
+    for (size_t i = 0; i < nb; ++i)
+        if (m_bodies[i].alive && m_bodies[i].kind == BodyKind::BlackHole)
+            bh_indices.push_back(i);
+
     for (int s = 0; s < steps; ++s)
     {
-        // Collect black hole indices once (O(n)) instead of O(n²) per-body scan
-        std::vector<size_t> bh_indices;
-        bh_indices.reserve(8);
-        for (size_t i = 0; i < m_bodies.size(); ++i)
-            if (m_bodies[i].alive && m_bodies[i].kind == BodyKind::BlackHole)
-                bh_indices.push_back(i);
-
         // Update local time scales based on proximity to Black Holes
         for (auto& b : m_bodies) {
             if (!b.alive) continue;
@@ -99,7 +105,7 @@ void Simulation::step_sim(double sim_dt_s)
             double kinetic_scale = std::sqrt(std::max(0.0, 1.0 - v2 / c2));
             drag_factor *= kinetic_scale;
             
-            // 2. Gravitational Dilation (Schwarzschild) — only check BHs
+            // 2. Gravitational Dilation (Schwarzschild)
             for (size_t idx : bh_indices) {
                 const auto& other = m_bodies[idx];
                 double dist = b.dist_to(other);
@@ -109,7 +115,7 @@ void Simulation::step_sim(double sim_dt_s)
                     double grav_scale = std::sqrt(1.0 - Rs / dist);
                     drag_factor *= grav_scale;
                 } else {
-                    drag_factor = 0.0; // Crossed event horizon (frozen to distant observer)
+                    drag_factor = 0.0;
                 }
             }
             b.local_time_scale = drag_factor;
@@ -118,17 +124,14 @@ void Simulation::step_sim(double sim_dt_s)
         Integrators::step(m_bodies, sub_dt, m_cfg.G, m_cfg.softening_m, m_cfg.integrator);
         resolve_collisions();
 
-        // Phase 25D: Event Horizon Consumption — only check against BHs
-        const double c2_eh = 299792458.0 * 299792458.0;
+        // Phase 25D: Event Horizon Consumption
         for (auto& b : m_bodies)
         {
             if (!b.alive || b.kind == BodyKind::BlackHole) continue;
             for (size_t idx : bh_indices)
             {
                 const auto& bh = m_bodies[idx];
-                if (!bh.alive) continue;
-                double rs = (2.0 * m_cfg.G * bh.mass_kg) / c2_eh;
-                if (b.dist_to(bh) < rs * 0.9)
+                if (b.dist_to(bh) < (2.0 * m_cfg.G * bh.mass_kg / c2) * 0.9)
                 {
                     b.alive = false;
                     events.on_bh_absorption.emit({ b.id, bh.id });

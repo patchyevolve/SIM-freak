@@ -110,31 +110,41 @@ static std::vector<Derivative> eval_derivatives(
     const std::vector<Body>& base,
     const std::vector<Derivative>& delta,
     double scale,
-    double G, double softening_m)
+    double G, double softening_m,
+    const std::vector<size_t>& atmos_hosts)
 {
-    // Build a temporary snapshot at (base + scale * delta)
-    std::vector<Body> tmp = base;
-    for (size_t i = 0; i < tmp.size(); ++i)
+    // High-Performance Shadow State: 
+    // We avoid deep-copying 10,000 Body objects (strings, events, etc.) 
+    // by using a persistent shadow vector and only updating kinematic fields.
+    thread_local std::vector<Body> shadow_bodies;
+    if (shadow_bodies.size() != base.size()) shadow_bodies = base;
+
+    for (size_t i = 0; i < base.size(); ++i)
     {
-        if (!tmp[i].alive || tmp[i].flags.immovable) continue;
-        tmp[i].pos += delta[i].dpos * scale;
-        tmp[i].vel += delta[i].dvel * scale;
+        if (!base[i].alive) { shadow_bodies[i].alive = false; continue; }
+        shadow_bodies[i].alive = true;
+        
+        if (base[i].flags.immovable) {
+            shadow_bodies[i].pos = base[i].pos;
+            shadow_bodies[i].vel = base[i].vel;
+        } else {
+            shadow_bodies[i].pos = base[i].pos + delta[i].dpos * scale;
+            shadow_bodies[i].vel = base[i].vel + delta[i].dvel * scale;
+        }
     }
 
-    // Compute accelerations on snapshot
-    Gravity::compute_accelerations(tmp, G, softening_m);
+    // Compute accelerations on shadow state
+    Gravity::compute_accelerations(shadow_bodies, G, softening_m);
 
-    // Derivatives: dpos/dt = vel,  dvel/dt = accel
-    // Phase 21: Scale derivatives by local time dilation
-    // Phase 29: Add non-conservative Drag
-    std::vector<size_t> atmos = collect_atmos_hosts(tmp);
-    std::vector<Derivative> derivs(tmp.size());
-    for (size_t i = 0; i < tmp.size(); ++i)
+    // Derivatives: dpos/dt = vel,  dvel/dt = (accel + drag) * dilation
+    std::vector<Derivative> derivs(base.size());
+    for (size_t i = 0; i < base.size(); ++i)
     {
-        double s = tmp[i].local_time_scale;
-        derivs[i].dpos = tmp[i].vel * s;
-        Vec2 drag_a = compute_drag_accel(tmp[i], tmp, atmos);
-        derivs[i].dvel = (tmp[i].accel + drag_a) * s;
+        if (!base[i].alive) continue;
+        double s = base[i].local_time_scale;
+        derivs[i].dpos = shadow_bodies[i].vel * s;
+        Vec2 drag_a = compute_drag_accel(shadow_bodies[i], shadow_bodies, atmos_hosts);
+        derivs[i].dvel = (shadow_bodies[i].accel + drag_a) * s;
     }
     return derivs;
 }
@@ -145,18 +155,21 @@ void step_rk4(std::vector<Body>& bodies,
     const size_t n = bodies.size();
     if (n == 0) return;
 
+    // Hoist expensive atmosphere scan once per RK4 step
+    auto atmos_hosts = collect_atmos_hosts(bodies);
+
     // k1: derivatives at t
     std::vector<Derivative> zero(n, { Vec2{}, Vec2{} });
-    auto k1 = eval_derivatives(bodies, zero, 0.0, G, softening_m);
+    auto k1 = eval_derivatives(bodies, zero, 0.0, G, softening_m, atmos_hosts);
 
     // k2: derivatives at t + dt/2, using k1
-    auto k2 = eval_derivatives(bodies, k1, dt * 0.5, G, softening_m);
+    auto k2 = eval_derivatives(bodies, k1, dt * 0.5, G, softening_m, atmos_hosts);
 
     // k3: derivatives at t + dt/2, using k2
-    auto k3 = eval_derivatives(bodies, k2, dt * 0.5, G, softening_m);
+    auto k3 = eval_derivatives(bodies, k2, dt * 0.5, G, softening_m, atmos_hosts);
 
     // k4: derivatives at t + dt, using k3
-    auto k4 = eval_derivatives(bodies, k3, dt, G, softening_m);
+    auto k4 = eval_derivatives(bodies, k3, dt, G, softening_m, atmos_hosts);
 
     // Combine: state += dt/6 * (k1 + 2*k2 + 2*k3 + k4)
     for (size_t i = 0; i < n; ++i)
