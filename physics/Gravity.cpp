@@ -30,7 +30,7 @@ static GLuint g_compute_program = 0;
 static GLuint g_bodies_ssbo = 0;
 static size_t g_ssbo_capacity = 0;
 static bool   g_gpu_ready = false;
-static const int GPU_BODY_THRESHOLD = 1024;
+static const int GPU_BODY_THRESHOLD = 512; // Lowered to leverage GPU earlier
 
 namespace Gravity
 {
@@ -63,11 +63,11 @@ void compute_accelerations(std::vector<Body>& bodies,
     for (const auto& b : bodies) if (b.alive && !b.flags.is_passive) ++heavy_cnt;
 
     // Algorithm Selection:
-    // 1. GPU Compute (Brute-force O(N²) on GPU)  -> for N >= 1024
-    // 2. Barnes-Hut (O(N log N) on CPU)          -> for N >= 768
-    // 3. Direct Sum (O(N²) on CPU)               -> for N < 768
+    // 1. GPU Compute (Optimized Tiled O(N²) on GPU) -> for N >= 512
+    // 2. Barnes-Hut (O(N log N) on CPU)              -> for N >= 768 (if GPU disabled)
+    // 3. Direct Sum (O(N²) on CPU)                   -> for small N
     
-    if (g_gpu_ready && bodies.size() >= GPU_BODY_THRESHOLD)
+    if (g_gpu_ready && (int)bodies.size() >= GPU_BODY_THRESHOLD)
     {
         dispatch_gpu(bodies, G, softening_m);
         return;
@@ -118,15 +118,18 @@ void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
         if (g_bodies_ssbo) glDeleteBuffers(1, &g_bodies_ssbo);
         glGenBuffers(1, &g_bodies_ssbo);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, g_bodies_ssbo);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, n * sizeof(GpuBodyData), nullptr, GL_DYNAMIC_DRAW);
-        g_ssbo_capacity = n;
+        // Over-allocate slightly to avoid constant resizing
+        g_ssbo_capacity = (size_t)(n * 1.5);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, g_ssbo_capacity * sizeof(GpuBodyData), nullptr, GL_DYNAMIC_DRAW);
     }
 
     // 2. Upload body data to GPU
-    std::vector<GpuBodyData> gpu_data(n);
+    static std::vector<GpuBodyData> s_gpu_data;
+    if (s_gpu_data.size() < n) s_gpu_data.resize(n);
+    
     for (size_t i = 0; i < n; ++i) {
         const auto& b = bodies[i];
-        gpu_data[i] = {
+        s_gpu_data[i] = {
             (float)b.pos.x, (float)b.pos.y,
             (float)b.vel.x, (float)b.vel.y,
             0.0f, 0.0f,
@@ -139,7 +142,8 @@ void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
         };
     }
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, g_bodies_ssbo);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, n * sizeof(GpuBodyData), gpu_data.data(), GL_STREAM_DRAW);
+    // Use SubData to avoid re-allocating memory on the driver side
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, n * sizeof(GpuBodyData), s_gpu_data.data());
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, g_bodies_ssbo);
 
     // 3. Dispatch Compute Shader
@@ -170,8 +174,17 @@ bool InitGPU()
 {
     if (!GLHelper::Init()) return false;
     
-    g_compute_program = GLHelper::CreateComputeProgram("render/gravity.comp");
-    if (g_compute_program == 0) return false;
+    // Check multiple possible paths for the shader
+    const char* paths[] = { "physics/gravity.comp", "render/gravity.comp", "../physics/gravity.comp" };
+    for (const char* p : paths) {
+        g_compute_program = GLHelper::CreateComputeProgram(p);
+        if (g_compute_program != 0) break;
+    }
+    
+    if (g_compute_program == 0) {
+        std::cerr << "[Physics] Failed to load gravity.comp from any known path.\n";
+        return false;
+    }
     
     g_gpu_ready = true;
     std::cout << "[Physics] GPU Compute Gravity Engine initialised.\n";

@@ -15,6 +15,7 @@ struct BodyData {
     int   is_passive;
     int   kind;
     float radius;
+    float padding; // Match C++ 48-byte struct
 };
 
 layout(std430, binding = 0) buffer BodiesBuffer {
@@ -25,25 +26,52 @@ layout(location = 0) uniform int   u_num_bodies;
 layout(location = 1) uniform float u_G;
 layout(location = 2) uniform float u_softening2;
 
+// Shared memory for tiling blocks of bodies
+shared vec4 shared_bodies[256]; // pos.x, pos.y, mass, is_passive (as float 0/1)
+
 void main() {
     uint i = gl_GlobalInvocationID.x;
-    if (i >= u_num_bodies) return;
-    if (bodies[i].alive == 0) return;
-
-    vec2 pos_i = bodies[i].pos;
+    vec2 pos_i = (i < u_num_bodies) ? bodies[i].pos : vec2(0.0);
     vec2 total_accel = vec2(0.0);
 
-    // Brute-force O(N^2) but massive parallel
-    for (int j = 0; j < u_num_bodies; ++j) {
-        if (i == uint(j)) continue;
-        if (bodies[j].alive == 0 || bodies[j].is_passive == 1) continue;
+    uint tile_size = gl_WorkGroupSize.x;
+    uint num_tiles = (u_num_bodies + tile_size - 1) / tile_size;
 
-        vec2 r_ij = bodies[j].pos - pos_i;
-        float dist2 = r_ij.x * r_ij.x + r_ij.y * r_ij.y + u_softening2;
-        float inv_dist3 = 1.0 / (dist2 * sqrt(dist2));
+    for (uint t = 0; t < num_tiles; ++t) {
+        // Load tile into shared memory
+        uint j_load = t * tile_size + gl_LocalInvocationIndex;
+        if (j_load < u_num_bodies) {
+            BodyData b = bodies[j_load];
+            shared_bodies[gl_LocalInvocationIndex] = vec4(b.pos, b.mass, float(b.alive > 0 && b.is_passive == 0));
+        } else {
+            shared_bodies[gl_LocalInvocationIndex] = vec4(0.0, 0.0, 0.0, 0.0);
+        }
+
+        memoryBarrierShared();
+        barrier();
+
+        // Accumulate gravity from this tile
+        if (i < u_num_bodies && bodies[i].alive != 0) {
+            for (uint j = 0; j < tile_size; ++j) {
+                vec4 other = shared_bodies[j];
+                // other.w is 1.0 if alive and NOT passive
+                if (other.w < 0.5) continue; 
+                
+                uint global_j = t * tile_size + j;
+                if (i == global_j) continue;
+
+                vec2 r_ij = other.xy - pos_i;
+                float dist2 = r_ij.x * r_ij.x + r_ij.y * r_ij.y + u_softening2;
+                float inv_dist3 = 1.0 / (dist2 * sqrt(dist2));
+                
+                total_accel += r_ij * (u_G * other.z * inv_dist3);
+            }
+        }
         
-        total_accel += r_ij * (u_G * bodies[j].mass * inv_dist3);
+        barrier();
     }
 
-    bodies[i].accel = total_accel;
+    if (i < u_num_bodies && bodies[i].alive != 0) {
+        bodies[i].accel = total_accel;
+    }
 }

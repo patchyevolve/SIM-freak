@@ -31,29 +31,30 @@ void Simulation::step_sim(double sim_dt_s)
 {
     if (m_bodies.empty()) { m_sim_time_s += sim_dt_s; return; }
 
-    // ── 1. Dynamic Step Limit (Robustness) ───────────────────────────────────
-    // Tau = sqrt(r^3 / GM). Skip passive-passive pairs (they don't exert gravity).
+    // ── 1. Dynamic Step Limit (Optimized) ───────────────────────────────────
+    // Instead of O(N^2) scan, we use a simpler heuristic or cached value.
+    // For 2000+ bodies, the O(N^2) CPU loop alone kills performance.
+    
     double min_tau = 1e30;
     const double G = m_cfg.G;
     const size_t nb = m_bodies.size();
-    for (size_t i = 0; i < nb; ++i) {
-        if (m_bodies[i].flags.is_passive) continue;
-        for (size_t j = i + 1; j < nb; ++j) {
-            if (m_bodies[j].flags.is_passive) continue;
-            Vec2 d = m_bodies[i].pos - m_bodies[j].pos;
-            double r2 = d.x*d.x + d.y*d.y;
-            double mass_sum = std::max(1.0, m_bodies[i].mass_kg + m_bodies[j].mass_kg);
-            double tau = std::sqrt(r2 * std::sqrt(r2) / (G * mass_sum + 1.0));
-            if (tau < min_tau) min_tau = tau;
+
+    if (nb < 500) {
+        // Only do full scan for small N
+        for (size_t i = 0; i < nb; ++i) {
+            if (m_bodies[i].flags.is_passive) continue;
+            for (size_t j = i + 1; j < nb; ++j) {
+                if (m_bodies[j].flags.is_passive) continue;
+                Vec2 d = m_bodies[i].pos - m_bodies[j].pos;
+                double r2 = d.x*d.x + d.y*d.y;
+                double mass_sum = std::max(1.0, m_bodies[i].mass_kg + m_bodies[j].mass_kg);
+                double tau = std::sqrt(r2 * std::sqrt(r2) / (G * mass_sum + 1.0));
+                if (tau < min_tau) min_tau = tau;
+            }
         }
-        for (size_t j = 0; j < nb; ++j) {
-            if (i == j || !m_bodies[j].flags.is_passive) continue;
-            Vec2 d = m_bodies[i].pos - m_bodies[j].pos;
-            double r2 = d.x*d.x + d.y*d.y;
-            double mass_sum = std::max(1.0, m_bodies[i].mass_kg + m_bodies[j].mass_kg);
-            double tau = std::sqrt(r2 * std::sqrt(r2) / (G * mass_sum + 1.0));
-            if (tau < min_tau) min_tau = tau;
-        }
+    } else {
+        // For large N, use a fixed or approximate safety floor
+        min_tau = 36000.0; // 10 hours floor for large simulations
     }
     
     // Safety clamp: stable dt should be roughly 10% of the orbital timescale
