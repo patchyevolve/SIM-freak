@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "BodyEditorPanel.h"
+#include "../sim/StellarEvolution.h"
 #include <cmath>
 #include <sstream>
 #include <iomanip>
