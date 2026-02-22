@@ -28,6 +28,12 @@ AppLoop::AppLoop(unsigned width, unsigned height)
     // Initialise render texture for post-processing
     if (!m_scene_texture.create(width, height))
         std::cerr << "[Error] Could not create scene render texture.\n";
+    if (!m_bloom_texture.create(width, height))
+        std::cerr << "[Error] Could not create bloom render texture.\n";
+    for (int i = 0; i < 2; ++i) {
+        if (!m_blur_textures[i].create(width, height))
+            std::cerr << "[Error] Could not create blur render texture " << i << "\n";
+    }
     m_scene_sprite.setTexture(m_scene_texture.getTexture());
 
     // Load lensing shader
@@ -35,6 +41,32 @@ AppLoop::AppLoop(unsigned width, unsigned height)
         std::cerr << "[Error] Shaders are not available on this system.\n";
     else if (!m_lensing_shader.loadFromFile("render/lensing.frag", sf::Shader::Fragment))
         std::cerr << "[Error] Could not load render/lensing.frag\n";
+    
+    if (sf::Shader::isAvailable()) {
+        if (!m_star_shader.loadFromFile("render/star_surface.frag", sf::Shader::Fragment))
+            std::cerr << "[Error] Could not load render/star_surface.frag\n";
+        else
+            m_body_renderer.set_star_shader(&m_star_shader);
+
+        if (!m_atmos_shader.loadFromFile("render/atmosphere.frag", sf::Shader::Fragment))
+            std::cerr << "[Error] Could not load render/atmosphere.frag\n";
+        else
+            m_body_renderer.set_atmos_shader(&m_atmos_shader);
+            
+        if (!m_nebula_shader.loadFromFile("render/nebula.frag", sf::Shader::Fragment))
+            std::cerr << "[Error] Could not load render/nebula.frag\n";
+            
+        if (!m_bloom_shader.loadFromFile("render/bloom.frag", sf::Shader::Fragment))
+            std::cerr << "[Error] Could not load render/bloom.frag\n";
+            
+        if (!m_blur_shader.loadFromFile("render/blur.frag", sf::Shader::Fragment))
+            std::cerr << "[Error] Could not load render/blur.frag\n";
+            
+        if (!m_disk_shader.loadFromFile("render/accretion_disk.frag", sf::Shader::Fragment))
+            std::cerr << "[Error] Could not load render/accretion_disk.frag\n";
+        else
+            m_body_renderer.set_disk_shader(&m_disk_shader);
+    }
 
     // Load a system font — try several common locations
     bool font_ok = false;
@@ -140,6 +172,12 @@ void AppLoop::on_resize(unsigned width, unsigned height)
     // 2. Re-create off-screen buffer
     if (!m_scene_texture.create(width, height))
         std::cerr << "[Error] Could not resize scene render texture.\n";
+    if (!m_bloom_texture.create(width, height))
+        std::cerr << "[Error] Could not resize bloom render texture.\n";
+    for (int i = 0; i < 2; ++i) {
+        if (!m_blur_textures[i].create(width, height))
+            std::cerr << "[Error] Could not resize blur render texture " << i << "\n";
+    }
     
     m_scene_texture.setSmooth(true);
     
@@ -174,10 +212,22 @@ void AppLoop::render_frame()
     // 1. Render scene to off-screen buffer
     m_scene_texture.clear(sf::Color(4, 4, 12));
 
+    // Draw Nebula Background
+    if (sf::Shader::isAvailable()) {
+        m_nebula_shader.setUniform("time", m_clock.getElapsedTime().asSeconds());
+        m_nebula_shader.setUniform("resolution", sf::Vector2f(static_cast<float>(m_window_size.x), static_cast<float>(m_window_size.y)));
+        m_nebula_shader.setUniform("cam_pos", sf::Glsl::Vec2(static_cast<float>(m_cam.center().x), static_cast<float>(m_cam.center().y)));
+        
+        sf::RectangleShape background(sf::Vector2f(static_cast<float>(m_window_size.x), static_cast<float>(m_window_size.y)));
+        m_scene_texture.draw(background, &m_nebula_shader);
+    }
+
     draw_starfield(m_scene_texture);
     m_grid.draw(m_scene_texture, m_cam, m_sim);
     m_trails.draw(m_scene_texture, m_cam);
     m_orbit_predictor.draw(m_scene_texture, m_cam);
+    
+    m_body_renderer.set_time(m_clock.getElapsedTime().asSeconds());
     m_body_renderer.draw_all(m_scene_texture, m_sim.bodies(), m_cam, m_input.selected_id());
     
     m_scene_texture.display();
@@ -217,7 +267,41 @@ void AppLoop::render_frame()
         m_window.draw(m_scene_sprite);
     }
 
-    // 3. Draw UI on top (not warped)
+    // 3. Multi-Pass Bloom (Threshold -> Blur H -> Blur V -> Additive Composite)
+    if (sf::Shader::isAvailable()) {
+        // Step A: Extraction (Threshold)
+        m_bloom_texture.clear(sf::Color::Transparent);
+        m_bloom_shader.setUniform("texture", sf::Shader::CurrentTexture);
+        m_bloom_shader.setUniform("threshold", 0.75f); // Increased for cinematic focus
+        m_bloom_shader.setUniform("intensity", 1.5f);
+        
+        sf::Sprite scene_spr(m_scene_texture.getTexture());
+        m_bloom_texture.draw(scene_spr, &m_bloom_shader);
+        m_bloom_texture.display();
+        
+        // Step B: Blur Horizontal
+        m_blur_textures[0].clear(sf::Color::Transparent);
+        m_blur_shader.setUniform("texture", sf::Shader::CurrentTexture);
+        m_blur_shader.setUniform("direction", sf::Vector2f(1.0f, 0.0f));
+        m_blur_shader.setUniform("resolution", sf::Vector2f(static_cast<float>(m_window_size.x), static_cast<float>(m_window_size.y)));
+        
+        sf::Sprite bloom_spr(m_bloom_texture.getTexture());
+        m_blur_textures[0].draw(bloom_spr, &m_blur_shader);
+        m_blur_textures[0].display();
+        
+        // Step C: Blur Vertical
+        m_blur_textures[1].clear(sf::Color::Transparent);
+        m_blur_shader.setUniform("texture", sf::Shader::CurrentTexture);
+        m_blur_shader.setUniform("direction", sf::Vector2f(0.0f, 1.0f));
+        m_blur_textures[1].draw(sf::Sprite(m_blur_textures[0].getTexture()), &m_blur_shader);
+        m_blur_textures[1].display();
+        
+        // Step D: Composite
+        sf::Sprite final_bloom(m_blur_textures[1].getTexture());
+        m_window.draw(final_bloom, sf::BlendAdd);
+    }
+
+    // 4. Draw UI on top (not warped)
     m_hud.draw(m_window);
     m_add_dialog.draw(m_window);
     m_editor_panel.draw(m_window, m_sim);

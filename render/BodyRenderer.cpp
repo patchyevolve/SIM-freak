@@ -74,9 +74,15 @@ sf::Color BodyRenderer::body_color(const Body& b, const Camera& cam) const
 float BodyRenderer::clamped_radius(const Body& b, const Camera& cam) const
 {
     float r = cam.world_radius_to_screen(b.radius_m);
-    if (r < MIN_RADIUS_PX) r = MIN_RADIUS_PX;
-    if (r > MAX_RADIUS_PX) r = MAX_RADIUS_PX;
-    return r;
+    
+    // Tiny bodies (asteroids, moons) get capped for visibility at high zooms
+    if (b.kind == BodyKind::Asteroid || b.kind == BodyKind::Moon) {
+        return std::max(MIN_RADIUS_PX, std::min(r, MAX_RADIUS_PX * 0.5f));
+    }
+    
+    // Major bodies (Stars, Planets, BlackHoles) are uncapped at the top
+    // but capped at the bottom for visibility
+    return std::max(MIN_RADIUS_PX, r);
 }
 
 // ── Sub-draw helpers ───────────────────────────────────────────────────────────
@@ -90,6 +96,12 @@ void BodyRenderer::draw_body_circle(sf::RenderTarget& t,
     circle.setFillColor(color);
     circle.setOrigin(radius, radius);
     circle.setPosition(pos);
+    
+    // Phase 25/Visuals: Apply star shader if this is a high-detail pass 
+    // and shader is available. We distinguish stars by the color/context,
+    // or we can pass a 'is_star' flag. For simplicity, we check if 
+    // m_star_shader is set and if we want to use it.
+    
     t.draw(circle);
 }
 
@@ -176,18 +188,32 @@ void BodyRenderer::draw_atmosphere(sf::RenderTarget& t, sf::Vector2f pos,
 
     // Multiple layers for soft scattering
     // Outer glow
-    int layers = 6;
-    float step = screen_radius * 0.15f;
-    for (int i = 1; i <= layers; ++i) {
-        float r = screen_radius + (layers - i + 1) * step;
-        sf::Color layer_color = color;
-        layer_color.a = static_cast<uint8_t>(25.0f * i / layers); 
-        
-        sf::CircleShape glow(r);
-        glow.setOrigin(r, r);
-        glow.setPosition(pos);
-        glow.setFillColor(layer_color);
-        t.draw(glow);
+    if (m_atmos_shader) {
+        float atmos_r = screen_radius * 1.5f; 
+        m_atmos_shader->setUniform("time", m_time);
+        m_atmos_shader->setUniform("atmos_color", sf::Glsl::Vec4(color));
+        m_atmos_shader->setUniform("planet_radius", screen_radius);
+        m_atmos_shader->setUniform("atmos_thickness", atmos_r - screen_radius);
+
+        sf::RectangleShape quad(sf::Vector2f(atmos_r * 2.0f, atmos_r * 2.0f));
+        quad.setOrigin(atmos_r, atmos_r);
+        quad.setPosition(pos);
+        t.draw(quad, m_atmos_shader);
+    } else {
+        // Multiple layers for soft scattering (Legacy fallback)
+        int layers = 6;
+        float step = screen_radius * 0.15f;
+        for (int i = 1; i <= layers; ++i) {
+            float r = screen_radius + (layers - i + 1) * step;
+            sf::Color layer_color = color;
+            layer_color.a = static_cast<uint8_t>(25.0f * i / layers); 
+            
+            sf::CircleShape glow(r);
+            glow.setOrigin(r, r);
+            glow.setPosition(pos);
+            glow.setFillColor(layer_color);
+            t.draw(glow);
+        }
     }
 }
 
@@ -381,60 +407,57 @@ void BodyRenderer::draw_black_hole(sf::RenderTarget& t, sf::Vector2f pos,
         t.draw(glow);
     }
 
-    // 2. Accretion disk with shadow (dark crescent on the far side)
-    sf::VertexArray va(sf::TriangleStrip);
-    for (int i = 0; i <= 80; ++i) {
-        float theta = (i / 80.0f) * 2.0f * PI + disk_rotation;
-        auto get_v = [&](float r, float angle) {
-            float x = std::cos(angle) * r;
-            float y = std::sin(angle) * r * 0.38f;
-            return pos + sf::Vector2f(x, y);
-        };
-        float norm_angle = std::fmod(theta + PI, 2.0f * PI);
-        bool in_shadow = (norm_angle >= shadow_angle_start && norm_angle <= shadow_angle_end);
-        sf::Color c = disk_color;
-        if (in_shadow) {
-            c.r = static_cast<uint8_t>(c.r / 4);
-            c.g = static_cast<uint8_t>(c.g / 4);
-            c.b = static_cast<uint8_t>(c.b / 4);
-            c.a = static_cast<uint8_t>(120.0f * (1.1f - (float)i / 80.0f));
-        } else {
-            c.a = static_cast<uint8_t>(240.0f * (1.2f - (float)i / 80.0f));
-        }
-        va.append(sf::Vertex(get_v(inner_r, theta), c));
-        sf::Color c_outer(c.r, c.g, c.b, in_shadow ? 25 : 50);
-        va.append(sf::Vertex(get_v(outer_r, theta), c_outer));
-    }
-    t.draw(va);
+    // 2. Accretion disk with shader (if available)
+    if (m_disk_shader) {
+        m_disk_shader->setUniform("time", m_time);
+        m_disk_shader->setUniform("base_color", sf::Glsl::Vec4(disk_color));
+        m_disk_shader->setUniform("inner_radius", inner_r);
+        m_disk_shader->setUniform("outer_radius", outer_r);
 
-    // 3. Hot inner ring (glare — hottest part of accretion disk)
-    float glare_inner = screen_radius * 1.5f;
-    float glare_outer = screen_radius * 2.4f;
-    sf::VertexArray glare_va(sf::TriangleStrip);
-    for (int i = 0; i <= 64; ++i) {
-        float theta = (i / 64.0f) * 2.0f * PI + disk_rotation * 0.7f;
-        float x0 = std::cos(theta) * glare_inner;
-        float y0 = std::sin(theta) * glare_inner * 0.4f;
-        float x1 = std::cos(theta) * glare_outer;
-        float y1 = std::sin(theta) * glare_outer * 0.4f;
-        glare_va.append(sf::Vertex(pos + sf::Vector2f(x0, y0), sf::Color(255, 255, 220, 230)));
-        glare_va.append(sf::Vertex(pos + sf::Vector2f(x1, y1), sf::Color(255, 200, 100, 80)));
-    }
-    t.draw(glare_va);
-
-    // 4. Hotspots (bright arcs on the disk)
-    for (int arc = 0; arc < 3; ++arc) {
-        float arc_center = disk_rotation * 1.3f + arc * 2.09f;
-        float arc_r = inner_r + (outer_r - inner_r) * (0.2f + 0.3f * (arc * 0.33f));
-        sf::VertexArray hot(sf::LineStrip);
-        for (int i = 0; i <= 12; ++i) {
-            float theta = arc_center - 0.15f + (i / 12.0f) * 0.3f;
-            float x = std::cos(theta) * arc_r;
-            float y = std::sin(theta) * arc_r * 0.4f;
-            uint8_t a = static_cast<uint8_t>(255 - i * 18);
-            hot.append(sf::Vertex(pos + sf::Vector2f(x, y), sf::Color(255, 255, 200, a)));
+        sf::RectangleShape disk_rect(sf::Vector2f(outer_r * 2.0f, outer_r * 2.0f));
+        disk_rect.setOrigin(outer_r, outer_r);
+        disk_rect.setPosition(pos);
+        // Scaling to 0.38f height is handled inside the shader for better precision
+        t.draw(disk_rect, m_disk_shader);
+    } else {
+        // Fallback to basic vertex array (original logic)
+        sf::VertexArray va(sf::TriangleStrip);
+        for (int i = 0; i <= 80; ++i) {
+            float theta = (i / 80.0f) * 2.0f * PI + disk_rotation;
+            auto get_v = [&](float r, float angle) {
+                float x = std::cos(angle) * r;
+                float y = std::sin(angle) * r * 0.38f;
+                return pos + sf::Vector2f(x, y);
+            };
+            float norm_angle = std::fmod(theta + PI, 2.0f * PI);
+            bool in_shadow = (norm_angle >= shadow_angle_start && norm_angle <= shadow_angle_end);
+            sf::Color c = disk_color;
+            if (in_shadow) {
+                c.r /= 4; c.g /= 4; c.b /= 4;
+                c.a = static_cast<uint8_t>(120.0f * (1.1f - (float)i / 80.0f));
+            } else {
+                c.a = static_cast<uint8_t>(240.0f * (1.2f - (float)i / 80.0f));
+            }
+            va.append(sf::Vertex(get_v(inner_r, theta), c));
+            sf::Color c_outer(c.r, c.g, c.b, in_shadow ? 25 : 50);
+            va.append(sf::Vertex(get_v(outer_r, theta), c_outer));
         }
-        t.draw(hot);
+        t.draw(va);
+
+        // 3. Hot inner ring (glare)
+        float glare_inner = screen_radius * 1.5f;
+        float glare_outer = screen_radius * 2.4f;
+        sf::VertexArray glare_va(sf::TriangleStrip);
+        for (int i = 0; i <= 64; ++i) {
+            float theta = (i / 64.0f) * 2.0f * PI + disk_rotation * 0.7f;
+            float x0 = std::cos(theta) * glare_inner;
+            float y0 = std::sin(theta) * glare_inner * 0.4f;
+            float x1 = std::cos(theta) * glare_outer;
+            float y1 = std::sin(theta) * glare_outer * 0.4f;
+            glare_va.append(sf::Vertex(pos + sf::Vector2f(x0, y0), sf::Color(255, 255, 220, 230)));
+            glare_va.append(sf::Vertex(pos + sf::Vector2f(x1, y1), sf::Color(255, 200, 100, 80)));
+        }
+        t.draw(glare_va);
     }
 
     // 5. Event horizon (solid black + bright rim)
@@ -479,14 +502,13 @@ void BodyRenderer::draw(sf::RenderTarget& target,
     }
 
     // 1. Atmosphere / Glow (Background)
-    if (body.kind == BodyKind::Star && radius >= MIN_RADIUS_PX)
+    if (body.kind == BodyKind::Star)
     {
-        sf::Color glow_color(color.r, color.g, color.b, 40);
-        draw_body_circle(target, screen_pos, radius * 2.5f, glow_color);
-        sf::Color mid_glow(color.r, color.g, color.b, 80);
-        draw_body_circle(target, screen_pos, radius * 1.6f, mid_glow);
-        // Note: For implementation simplicity, atmosphere is the same
-        draw_atmosphere(target, screen_pos, body, radius);
+        // For stars, we skip the legacy atmosphere glow if the shader is active,
+        // as the shader handles the volumetric corona itself.
+        if (!m_star_shader && body.render.has_atmosphere()) {
+            draw_atmosphere(target, screen_pos, body, radius);
+        }
     }
     else if (body.render.has_atmosphere())
     {
@@ -508,7 +530,43 @@ void BodyRenderer::draw(sf::RenderTarget& target,
         draw_selection_halo(target, screen_pos, radius);
 
     // 4. Main circle
-    draw_body_circle(target, screen_pos, radius, color);
+    if (body.kind == BodyKind::Star && m_star_shader && radius >= 5.0f) {
+        float expanded_r = radius * 1.5f; 
+        
+        static bool logged_sun = false;
+        if (body.name == "Sun" && !logged_sun) {
+            printf("[Render] Star shader active on Sun. Radius: %.1f, Expanded: %.1f, ScreenPos: (%.1f, %.1f)\n", 
+                   radius, expanded_r, screen_pos.x, screen_pos.y);
+            logged_sun = true;
+        }
+
+        m_star_shader->setUniform("time", m_time);
+        m_star_shader->setUniform("base_color", sf::Glsl::Vec4(color));
+        m_star_shader->setUniform("radius", expanded_r);
+        
+        // Use a VertexArray to EXPLICITLY set texture coordinates
+        // This ensures gl_TexCoord[0] is populated even without a texture bound.
+        sf::VertexArray va(sf::Quads, 4);
+        va[0].position = screen_pos + sf::Vector2f(-expanded_r, -expanded_r);
+        va[0].texCoords = sf::Vector2f(0, 0);
+        va[0].color = color;
+
+        va[1].position = screen_pos + sf::Vector2f(expanded_r, -expanded_r);
+        va[1].texCoords = sf::Vector2f(expanded_r * 2.0f, 0);
+        va[1].color = color;
+
+        va[2].position = screen_pos + sf::Vector2f(expanded_r, expanded_r);
+        va[2].texCoords = sf::Vector2f(expanded_r * 2.0f, expanded_r * 2.0f);
+        va[2].color = color;
+
+        va[3].position = screen_pos + sf::Vector2f(-expanded_r, expanded_r);
+        va[3].texCoords = sf::Vector2f(0, expanded_r * 2.0f);
+        va[3].color = color;
+
+        target.draw(va, m_star_shader);
+    } else {
+        draw_body_circle(target, screen_pos, radius, color);
+    }
 
     // 5. Annotations
     if (selected || radius > 5.0f)

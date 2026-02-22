@@ -1,2 +1,0 @@
-d:\codeWorks\simPUS\simPUS\x64\Release\lensing.frag
-d:\codeWorks\simPUS\simPUS\x64\Release\gravity.comp

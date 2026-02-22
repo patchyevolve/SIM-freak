@@ -33,7 +33,15 @@ private:
     sf::Font         m_font;
     sf::Clock        m_clock;
     sf::Shader       m_lensing_shader;
+    sf::Shader       m_star_shader;
+    sf::Shader       m_atmos_shader;
+    sf::Shader       m_nebula_shader;
+    sf::Shader       m_bloom_shader;
+    sf::Shader       m_blur_shader;
+    sf::Shader       m_disk_shader;
     sf::RenderTexture m_scene_texture;
+    sf::RenderTexture m_bloom_texture;
+    sf::RenderTexture m_blur_textures[2]; // Ping-pong for Gaussian blur
     sf::Sprite       m_scene_sprite;
     sf::Vector2u     m_window_size;
 

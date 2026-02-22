@@ -131,6 +131,12 @@ static std::vector<Derivative> eval_derivatives(
             shadow_bodies[i].pos = base[i].pos + delta[i].dpos * scale;
             shadow_bodies[i].vel = base[i].vel + delta[i].dvel * scale;
         }
+
+        // Update physical properties that might have changed (or differ between tests)
+        shadow_bodies[i].has_atmos = base[i].has_atmos;
+        shadow_bodies[i].atmos     = base[i].atmos;
+        shadow_bodies[i].mass_kg   = base[i].mass_kg;
+        shadow_bodies[i].radius_m  = base[i].radius_m;
     }
 
     // Compute accelerations on shadow state

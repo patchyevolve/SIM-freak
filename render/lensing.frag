@@ -14,36 +14,31 @@ void main()
     float dist = length(dir);
     float rs_uv = bh_radius / resolution.x;
     
-    if (dist < rs_uv * 0.99) {
+    // Event horizon (slightly smaller to allow for smooth edge)
+    if (dist < rs_uv * 0.98) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
     
-    vec2 warped_uv = uv;
-    float safe_dist = max(dist, rs_uv * 0.15);
-    float deflect = (rs_uv * 1.8) / safe_dist;
-    deflect = deflect * deflect;
-    vec2 dir_n = dir / safe_dist;
-    warped_uv = uv - vec2(dir_n.x, dir_n.y / aspect) * deflect * 0.4;
+    // Schwarzschild Deflection Approximation
+    // Light is bent more strongly near the event horizon.
+    // The deflection angle goes to infinity at the photon sphere (1.5 * rs).
+    float safe_dist = max(dist, rs_uv * 1.01);
+    float deflection = (rs_uv * 2.5) / pow(safe_dist, 1.5);
+    
+    vec2 warped_uv = uv - (dir / dist / aspect) * deflection * rs_uv;
+    
+    // Bounds check to avoid wrapping or smearing at edges
+    if (warped_uv.x < 0.0 || warped_uv.x > 1.0 || warped_uv.y < 0.0 || warped_uv.y > 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
     
     vec4 color = texture2D(texture, warped_uv);
     
-    float rim = smoothstep(rs_uv * 0.4, rs_uv * 1.5, dist);
-    color.rgb *= rim;
-    
-    float deflection_strength = smoothstep(rs_uv * 0.6, rs_uv * 2.2, dist);
-    float glare_inner = rs_uv * 1.02;
-    float glare_outer = rs_uv * 3.0;
-    float glare = 0.0;
-    if (dist > glare_inner && dist < glare_outer) {
-        float t = (dist - glare_inner) / (glare_outer - glare_inner);
-        glare = exp(-t * 2.2) * (0.6 + 0.4 * deflection_strength);
-    }
-    color.rgb += vec3(1.0, 0.92, 0.65) * glare * 0.9;
-    color.a = max(color.a, glare * 0.5);
-    
-    float lens_fringe = smoothstep(rs_uv * 0.99, rs_uv * 1.12, dist) * (1.0 - smoothstep(rs_uv * 1.12, rs_uv * 1.7, dist));
-    color.rgb += vec3(0.88, 0.9, 1.0) * lens_fringe * 0.5;
+    // Smooth the black hole edge
+    float edge = smoothstep(rs_uv * 0.98, rs_uv * 1.02, dist);
+    color.rgb *= edge;
     
     gl_FragColor = color;
 }

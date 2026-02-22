@@ -12,6 +12,12 @@ class BodyRenderer
 {
 public:
     explicit BodyRenderer(const sf::Font& font);
+    
+    // Shader Injection
+    void set_star_shader(sf::Shader* s) { m_star_shader = s; }
+    void set_atmos_shader(sf::Shader* s) { m_atmos_shader = s; }
+    void set_disk_shader(sf::Shader* s) { m_disk_shader = s; }
+    void set_time(float t) { m_time = t; }
 
     /// Draw all bodies efficiently using batching and culling
     void draw_all(sf::RenderTarget& target,
@@ -36,6 +42,10 @@ public:
 
 private:
     const sf::Font& m_font;
+    sf::Shader*     m_star_shader = nullptr;
+    sf::Shader*     m_atmos_shader = nullptr;
+    sf::Shader*     m_disk_shader = nullptr;
+    float           m_time = 0.0f;
 
     sf::Color       body_color(const Body& b, const Camera& cam) const;
     float           clamped_radius(const Body& b, const Camera& cam) const;
