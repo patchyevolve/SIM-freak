@@ -1,0 +1,12 @@
+.vs/
+bin/
+obj/
+out/
+build/
+*.exe
+*.pdb
+*.user
+*.suo
+*.json
+!README.md
+!simsus_test_save.json
