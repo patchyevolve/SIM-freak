@@ -6,9 +6,10 @@ A high-performance, real-time gravitational simulation engine built with C++17 a
 
 ## 🚀 Physics & Solvers
 
-- **Dual Gravity Kernels**:
-  - **O(n²) Direct Sum**: High-accuracy pairwise interactions for small to medium counts.
-  - **O(n log n) Barnes-Hut**: Quadtree-based solver for massive simulations (10,000+ bodies).
+- **Triple Gravity Solvers**:
+  - **GPU Compute (Titan)**: Massive parallel O(n²) solver using OpenGL Compute Shaders. Optimized for 10,000+ bodies at 60 FPS.
+  - **Barnes-Hut (CPU)**: O(n log n) fall-back for older hardware.
+  - **Direct Sum (CPU)**: High-accuracy interactions for small counts.
 - **Stellar Evolution Suite**:
   - **Composition-Based Aging**: Bodies track Hydrogen, Helium, Silicates, and Iron.
   - **Relativistic Lifecycle**: Automated transitions from Main Sequence → Red Giant → Neutron Star/Black Hole based on core density and mass limits (Chandrasekhar-ish).
@@ -26,7 +27,7 @@ A high-performance, real-time gravitational simulation engine built with C++17 a
 4. **Black Hole**: Gargantua-class singularity with relativistic light bending.
 5. **Collision**: High-speed impact scenario designed to test merge and fragmentation logic.
 6. **Nebula**: Large-scale chaotic cloud collapse with 2000+ particles.
-7. **Small Galaxy**: Spiral-arm formation with 10,000+ particles utilizing Barnes-Hut.
+7. **Megascale Galaxy**: Clean, sparse spiral formation spanning **33,000 AU** with 10,001 particles.
 
 ## 🎨 High-Fidelity Rendering
 
@@ -35,17 +36,19 @@ A high-performance, real-time gravitational simulation engine built with C++17 a
   - **Accretion Effects**: Accretion disk glows and intensity halos for singularities.
   - **Atmosphere & Rings**: Multi-layered atmospheric scattering and orbital ring rendering.
   - **Sphere of Influence (SOI)**: Visualized dominance zones for gravitational capture.
+- **Extreme Performance**:
+  - **Diamond Star Geometry**: High-efficiency 6-vertex dots for 10,000+ background stars.
+  - **Spatial Hashing**: O(N) collision pruning for real-time megascale stability.
 - **Adaptive HUD & Analysis**:
-  - **Live Diagnostics**: Real-time Energy (J), Momentum (kg·m/s), and Sim-time tracking.
+  - **Live Diagnostics**: Real-time GPU Physics status, Energy (J), Momentum, and Sim-time.
   - **Orbit Predictor**: Forward-projected path lines for all active bodies.
   - **Body Editor**: Runtime adjustment of mass, composition, and visual style.
-  - **LOD Batching**: Vertex-batched rendering for massive particle counts.
 
 ## 🛠 Tech Stack
 
 - **C++17 Core**: Strict SI-unit physics and data-oriented design.
 - **SFML 2.5+**: Windowing, input, and 2D graphics.
-- **OpenGL/GLSL**: Fragment shaders for lensing, grids, and future compute acceleration.
+- **OpenGL/GLSL (Modern)**: Fragment shaders for lensing, plus **GPU Compute Shaders** (Titan Kernel) for physics.
 - **nlohmann/json**: Versioned snapshot system for state persistence.
 
 ## 🏗 Build & Usage
