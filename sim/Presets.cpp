@@ -9,6 +9,7 @@
 #include "../physics/Integrators.h"
 #include <cmath>
 #include <iostream>
+#include <random>
 
 // ── Helper to build a colour from RGBA bytes ──────────────────────────────────
 static constexpr uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255)
@@ -403,12 +404,20 @@ std::vector<Body> make_galaxy_small(double G)
     bodies.push_back(bh);
 
     // 10,000 orbiting stars (passive for gravity, but affected by BH)
-    // We use a simple spiral distribution
+    // We use a randomized distribution to prevent artificial lattice patterns.
+    std::mt19937 rng(1337);
+    std::uniform_real_distribution<double> dist_angle(0.0, 2.0 * 3.14159265);
+    // Gaussian-ish radial distribution for a more natural cluster/galaxy look
+    std::normal_distribution<double> dist_r(5e11, 4e11); 
+
     for (int i = 0; i < 10000; ++i) {
-        // Rs for 2e37 kg is ~3e10 m. 
-        // We start stars at 1.5e11 m (1 AU range) up to 2e12 m.
-        double r = 1.5e11 + (double)(i % 500) * 1e9 + (double)(i / 500) * 5e10;
-        double angle = (double)i * 0.137; // Golden angle-ish spiral
+        double r = 0.0;
+        // Ensure stars don't spawn inside or too close to the event horizon (Rs ~ 3e10m)
+        while (r < 1.2e11) {
+            r = std::abs(dist_r(rng));
+        }
+        
+        double angle = dist_angle(rng);
         
         Body s;
         s.id = "s" + std::to_string(i);
@@ -417,8 +426,12 @@ std::vector<Body> make_galaxy_small(double G)
         s.mass_kg = 2.0e30;
         s.radius_m = 7.0e8;
         s.pos = { r * std::cos(angle), r * std::sin(angle) };
+        
+        // Circular orbital velocity: v = sqrt(G * M / r)
         double v = std::sqrt(G * bh.mass_kg / r);
+        // Tangential velocity vector
         s.vel = { -v * std::sin(angle), v * std::cos(angle) };
+        
         s.flags.is_passive = true;
         s.render = { rgb(180 + (i % 75), 200 + (i % 55), 255), 1.2f, false, false };
         bodies.push_back(s);
