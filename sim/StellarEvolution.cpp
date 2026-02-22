@@ -61,16 +61,33 @@ bool tick(Body& b, double dt_s)
     {
         double rho = density(b);
 
-        // 1. Hydrogen fusion: slowly convert H → He over sim time
-        if (b.stellar_class == StellarClass::MainSequence && b.composition.hydrogen > 0.0f)
-        {
-            float burned = static_cast<float>(H_FUSION_RATE_PER_S * dt_s * b.mass_kg / b.mass_kg);
+            // Scaled fusion rate (massive stars burn MUCH faster: rate ~ M²)
+            double mass_ratio = b.mass_kg / 1.989e30; // solar masses
+            double scaled_rate = H_FUSION_RATE_PER_S * (1.0 + mass_ratio * mass_ratio * 0.1);
+            
+            float burned = static_cast<float>(scaled_rate * dt_s);
             burned = std::min(burned, b.composition.hydrogen);
             b.composition.hydrogen -= burned;
-            b.composition.helium   += burned * 0.98f; // ~2% mass deficit → energy
+            b.composition.helium   += burned * 0.98f;
 
             // Update temperature (hotter as He accumulates on main sequence)
             b.temperature_K = 5778.0 * (1.0 + 0.5 * (double)b.composition.helium);
+        }
+
+        // 1B. Helium fusion: Red Giants burn He → C/O
+        if (b.stellar_class == StellarClass::RedGiant && b.composition.helium > 0.0f)
+        {
+            double mass_ratio = b.mass_kg / 1.989e30;
+            double scaled_rate = H_FUSION_RATE_PER_S * 10.0 * (1.0 + mass_ratio * mass_ratio * 0.5);
+            
+            float burned = static_cast<float>(scaled_rate * dt_s);
+            burned = std::min(burned, b.composition.helium);
+            b.composition.helium -= burned;
+            b.composition.carbon += burned * 0.5f;
+            b.composition.oxygen += burned * 0.45f;
+            
+            // Red Giants get hotter as they approach the end
+            b.temperature_K += dt_s * 1e-8; 
         }
 
         // 2. Red Giant transition: H depleted, outer shell expands

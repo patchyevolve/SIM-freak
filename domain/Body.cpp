@@ -57,6 +57,21 @@ Body merge_bodies(const Body& a, const Body& b)
     merged.accel = Vec2{};  // will be recomputed next step
     merged.alive = true;
     merged.bodies_merged_count = a.bodies_merged_count + b.bodies_merged_count + 1;
+
+    // Composition Mixing: Mass-weighted average
+    auto mix = [&](float comp_a, float comp_b) {
+        return static_cast<float>((comp_a * a.mass_kg + comp_b * b.mass_kg) / merged.mass_kg);
+    };
+
+    merged.composition.hydrogen = mix(a.composition.hydrogen, b.composition.hydrogen);
+    merged.composition.helium   = mix(a.composition.helium,   b.composition.helium);
+    merged.composition.carbon   = mix(a.composition.carbon,   b.composition.carbon);
+    merged.composition.oxygen   = mix(a.composition.oxygen,   b.composition.oxygen);
+    merged.composition.iron     = mix(a.composition.iron,     b.composition.iron);
+    merged.composition.silicon  = mix(a.composition.silicon,  b.composition.silicon);
+    merged.composition.ice      = mix(a.composition.ice,      b.composition.ice);
+    merged.composition.rock     = mix(a.composition.rock,     b.composition.rock);
+
     (void)light;            // suppress unused-variable warning
     return merged;
 }
