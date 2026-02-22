@@ -300,24 +300,19 @@ void BodyRenderer::draw_all(sf::RenderTarget& target,
         } else {
             sf::Color color = body_color(b, cam);
             
-            // Octagon approximation (8 points)
-            // Center is implied by the triangle fan-ish structure we'll build
-            static const float s = 0.7071f; // sin(45)
-            sf::Vector2f offsets[8] = {
-                {r, 0}, {r*s, r*s}, {0, r}, {-r*s, r*s},
-                {-r, 0}, {-r*s, -r*s}, {0, -r}, {r*s, -r*s}
-            };
-
-            // 6 triangles per octagon (8 vertices -> center + 8 ring)
-            // Simpler: just use a cross + corners (Quad with snipped corners)
-            // For extreme performance, we use a 4x4 diamond or 8-vert fan
+            // Speed optimization: Use 4-vertex diamonds (2 triangles) for low-detail stars
+            // instead of 8-vertex octagons. This reduces vertex count from 24 to 6 per body.
             sf::Vector2f v_center = sp;
-            for (int i = 0; i < 8; ++i) {
-                int next = (i + 1) % 8;
-                particle_batch.append(sf::Vertex(v_center, color));
-                particle_batch.append(sf::Vertex(v_center + offsets[i], color));
-                particle_batch.append(sf::Vertex(v_center + offsets[next], color));
-            }
+            
+            // Triangle 1
+            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(0, -r), color));
+            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(r, 0), color));
+            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(-r, 0), color));
+            
+            // Triangle 2
+            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(r, 0), color));
+            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(0, r), color));
+            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(-r, 0), color));
         }
     }
 

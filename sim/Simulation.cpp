@@ -198,20 +198,27 @@ void Simulation::resolve_collisions()
     const size_t n = m_bodies.size();
     if (n < 2) return;
 
+    // Identify gravity sources (Heavy bodies) — they are the only ones whose 
+    // collisions we care about for performance reasons (merges, BH eating).
+    std::vector<size_t> heavy_idx;
+    heavy_idx.reserve(512);
+    for (size_t i = 0; i < n; ++i) {
+        if (!m_bodies[i].flags.is_passive && m_bodies[i].alive)
+            heavy_idx.push_back(i);
+    }
+
+    if (heavy_idx.empty()) return;
+
     bool any_merged = true;
     int iterations = 0;
-    constexpr int MAX_ITER = 3;
-
-    while (any_merged && iterations < MAX_ITER)
+    while (any_merged && iterations < 3)
     {
         any_merged = false;
-
-        // ── Spatial Hash Construction (O(n)) ────────────────────────────────
-        // cell_size = 5e11 m (~3.3 AU) — optimized for the megascale galaxy
         const double cell_size = 5e11; 
         static std::unordered_map<long long, std::vector<size_t>> grid;
         grid.clear();
 
+        // Build grid of ALL bodies (passive ones included so heavy can find them)
         for (size_t i = 0; i < n; ++i) {
             if (!m_bodies[i].alive) continue;
             long long cx = static_cast<long long>(std::floor(m_bodies[i].pos.x / cell_size));
@@ -220,8 +227,8 @@ void Simulation::resolve_collisions()
             grid[key].push_back(i);
         }
 
-        // ── Grid-based Collision Check (O(n)) ──────────────────────────────
-        for (size_t i = 0; i < n; ++i)
+        // Only check collisions STARING FROM a heavy body
+        for (size_t i : heavy_idx)
         {
             if (!m_bodies[i].alive || m_bodies[i].flags.no_collide) continue;
             
@@ -236,7 +243,6 @@ void Simulation::resolve_collisions()
 
                     for (size_t j : it->second) {
                         if (i == j || !m_bodies[j].alive || m_bodies[j].flags.no_collide) continue;
-                        if (j < i) continue; // Pair optimization
 
                         if (m_bodies[i].overlaps(m_bodies[j]))
                         {

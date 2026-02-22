@@ -109,18 +109,27 @@ void compute_accelerations(std::vector<Body>& bodies,
 
 // ── GPU Helper Functions ───────────────────────────────────────────────────────
 
+static GLuint g_accel_ssbo = 0;
+
 void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
 {
     const size_t n = bodies.size();
 
-    // 1. Prepare buffer (resize if needed)
+    // 1. Prepare buffers (resize if needed)
     if (n > g_ssbo_capacity) {
         if (g_bodies_ssbo) glDeleteBuffers(1, &g_bodies_ssbo);
+        if (g_accel_ssbo)  glDeleteBuffers(1, &g_accel_ssbo);
+        
         glGenBuffers(1, &g_bodies_ssbo);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, g_bodies_ssbo);
-        // Over-allocate slightly to avoid constant resizing
+        glGenBuffers(1, &g_accel_ssbo);
+        
         g_ssbo_capacity = (size_t)(n * 1.5);
+        
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, g_bodies_ssbo);
         glBufferData(GL_SHADER_STORAGE_BUFFER, g_ssbo_capacity * sizeof(GpuBodyData), nullptr, GL_DYNAMIC_DRAW);
+        
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, g_accel_ssbo);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, g_ssbo_capacity * sizeof(float) * 2, nullptr, GL_DYNAMIC_DRAW);
     }
 
     // 2. Upload body data to GPU
@@ -132,7 +141,7 @@ void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
         s_gpu_data[i] = {
             (float)b.pos.x, (float)b.pos.y,
             (float)b.vel.x, (float)b.vel.y,
-            0.0f, 0.0f,
+            0.0f, 0.0f, // ax, ay updated by shader
             (float)b.mass_kg,
             b.alive ? 1 : 0,
             b.flags.is_passive ? 1 : 0,
@@ -141,10 +150,12 @@ void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
             0.0f
         };
     }
+    
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, g_bodies_ssbo);
-    // Use SubData to avoid re-allocating memory on the driver side
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, n * sizeof(GpuBodyData), s_gpu_data.data());
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, g_bodies_ssbo);
+    
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, g_accel_ssbo);
 
     // 3. Dispatch Compute Shader
     glUseProgram(g_compute_program);
@@ -156,14 +167,15 @@ void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
     glDispatchCompute(groups, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-    // 4. Read back acceleration
-    GpuBodyData* mapped = (GpuBodyData*)glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, n * sizeof(GpuBodyData), GL_MAP_READ_BIT);
+    // 4. Read back acceleration ONLY (8 bytes per body vs 48)
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, g_accel_ssbo);
+    float* mapped = (float*)glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, n * 2 * sizeof(float), GL_MAP_READ_BIT);
     if (mapped)
     {
         for (size_t i = 0; i < n; ++i) {
             if (bodies[i].alive) {
-                bodies[i].accel.x = (double)mapped[i].ax;
-                bodies[i].accel.y = (double)mapped[i].ay;
+                bodies[i].accel.x = (double)mapped[i * 2];
+                bodies[i].accel.y = (double)mapped[i * 2 + 1];
             }
         }
         glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
