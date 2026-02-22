@@ -11,15 +11,20 @@
 
 void TrailSystem::record(const std::vector<Body>& bodies, double sim_time_s)
 {
-    // Build a set of IDs that are alive this tick — used for dead-trail cleanup
+    // Filter out bodies that don't need trails (passive stars)
+    // This is a massive win for 10,000 body sims in Debug mode.
     std::unordered_set<std::string> alive_ids;
-    alive_ids.reserve(bodies.size());
+    alive_ids.reserve(128); // Usually only a few significant bodies
 
     for (const auto& b : bodies)
     {
         if (!b.alive || !b.render.draw_trail) continue;
-        alive_ids.insert(b.id);
 
+        // SKIP trails for passive bodies unless they are extremely massive or special
+        // (This removes the 10,000 deque management overhead)
+        if (b.flags.is_passive && b.kind == BodyKind::Star) continue;
+
+        alive_ids.insert(b.id);
         auto& trail = m_trails[b.id];
         trail.alive = true;
 
