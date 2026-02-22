@@ -7,6 +7,8 @@
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include "TrailSystem.h"
+#include "OrbitPredictor.h"
 
 HUD::HUD(const sf::Font& font) : m_font(font) {}
 
@@ -39,7 +41,8 @@ std::string HUD::format_num(double v, int decimals)
 void HUD::update(const Simulation& sim,
                  const Body*      selected_body,
                  float            fps,
-                 double           initial_energy_J)
+                 double           initial_energy_J,
+                 double           meters_per_pixel)
 {
     auto diag = sim.diagnostics();
 
@@ -68,6 +71,17 @@ void HUD::update(const Simulation& sim,
         }
         else if (!diag.energy_valid)
             oss << "E drift    (n>" << 500 << ")\n";
+
+        // Zoom display
+        oss << "Scale      ";
+        if (meters_per_pixel >= 1.5e14) // >= 1000 AU
+            oss << std::setprecision(2) << meters_per_pixel / 1.496e11 << " AU/px\n";
+        else if (meters_per_pixel >= 1e9)
+            oss << std::setprecision(1) << meters_per_pixel / 1e9 << "M km/p\n";
+        else if (meters_per_pixel >= 1e3)
+            oss << std::setprecision(1) << meters_per_pixel / 1e3 << " km/px\n";
+        else
+            oss << std::setprecision(1) << meters_per_pixel << " m/px\n";
 
         oss << (sim.is_paused() ? "[PAUSED]" : "") ;
         m_diag_text = oss.str();
@@ -98,8 +112,9 @@ void HUD::update(const Simulation& sim,
             "Left click    Select\n"
             "Space         Pause/Resume\n"
             "[ / ]         Warp x0.5 / x2\n"
-            "1 / 2 / 3     Solar/Binary/Fig-8\n"
+            "1 / 2 / 3 / 4 Solar/Binary/Fig-8/BH\n"
             "F             Follow selected\n"
+            "C             Clear all trails & orbit path\n"
             "A             Place mode (then click to add body there)\n"
             "              A again = add at default pos\n"
             "              Right panel = edit selected body\n"
@@ -117,13 +132,27 @@ void HUD::draw_panel(sf::RenderTarget& t,
 {
     if (text.empty()) return;
 
-    // Count lines for height
-    int lines = 1;
-    for (char ch : text) if (ch == '\n') ++lines;
-    float h = static_cast<float>(lines) * LINE_H + 10.0f;
+    // Measure text to prevent overflow
+    sf::Text measureTxt;
+    measureTxt.setFont(m_font);
+    measureTxt.setCharacterSize(FONT_SIZE);
+    
+    float maxWidth = 0.0f;
+    std::string line;
+    std::stringstream ss(text);
+    int lines = 0;
+    while (std::getline(ss, line)) {
+        measureTxt.setString(line);
+        float lw = measureTxt.getLocalBounds().width;
+        if (lw > maxWidth) maxWidth = lw;
+        lines++;
+    }
+
+    float finalW = std::max(w, maxWidth + 20.0f);
+    float finalH = static_cast<float>(lines) * LINE_H + 10.0f;
 
     // Background
-    sf::RectangleShape panel({ w, h });
+    sf::RectangleShape panel({ finalW, finalH });
     panel.setPosition(x, y);
     panel.setFillColor(bg);
     panel.setOutlineColor(sf::Color(60, 60, 80, 200));
@@ -142,6 +171,21 @@ void HUD::draw_panel(sf::RenderTarget& t,
 
 // ── Draw ───────────────────────────────────────────────────────────────────────
 
+bool HUD::handle_event(const sf::Event& event, TrailSystem& trails, OrbitPredictor& orbits)
+{
+    if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left)
+    {
+        sf::Vector2f mpos(static_cast<float>(event.mouseButton.x), static_cast<float>(event.mouseButton.y));
+        if (m_clear_btn_bounds.contains(mpos))
+        {
+            trails.clear();
+            orbits.clear();
+            return true;
+        }
+    }
+    return false;
+}
+
 void HUD::draw(sf::RenderTarget& target) const
 {
     float y = PANEL_Y;
@@ -152,7 +196,38 @@ void HUD::draw(sf::RenderTarget& target) const
     // Count lines in diag for offset
     int lines = 1;
     for (char ch : m_diag_text) if (ch == '\n') ++lines;
-    y += static_cast<float>(lines) * LINE_H + 18.0f;
+    float diag_h = static_cast<float>(lines) * LINE_H + 10.0f;
+
+    // Button: Clear Trails (Positioned below the diagnostics panel)
+    {
+        float btnW = 200.0f;
+        float btnH = 22.0f;
+        float btnX = PANEL_X + (PANEL_W - btnW) * 0.5f;
+        float btnY = y + diag_h + 8.0f;
+
+        m_clear_btn_bounds = sf::FloatRect(btnX, btnY, btnW, btnH);
+
+        sf::RectangleShape clearBtn(sf::Vector2f(btnW, btnH));
+        clearBtn.setPosition(btnX, btnY);
+        clearBtn.setFillColor(sf::Color(100, 30, 30, 180));
+        clearBtn.setOutlineColor(sf::Color(180, 60, 60, 150));
+        clearBtn.setOutlineThickness(1.0f);
+        target.draw(clearBtn);
+
+        sf::Text clearTxt;
+        clearTxt.setFont(m_font);
+        clearTxt.setString("CLEAR ALL TRAILS ('C')");
+        clearTxt.setCharacterSize(10);
+        clearTxt.setFillColor(sf::Color::White);
+        
+        // Center text in button
+        sf::FloatRect textBounds = clearTxt.getLocalBounds();
+        clearTxt.setPosition(btnX + (btnW - textBounds.width) * 0.5f, 
+                             btnY + (btnH - textBounds.height) * 0.5f - 2.0f);
+        target.draw(clearTxt);
+        
+        y += diag_h + btnH + 18.0f; 
+    }
 
     // Selected body
     if (!m_selected_text.empty())

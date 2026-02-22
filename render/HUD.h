@@ -9,6 +9,9 @@
 #include <string>
 #include <optional>
 
+class TrailSystem;
+class OrbitPredictor;
+
 class HUD
 {
 public:
@@ -18,10 +21,13 @@ public:
     void update(const Simulation& sim,
                 const Body*      selected_body,
                 float            fps,
-                double           initial_energy_J);
+                double           initial_energy_J,
+                double           meters_per_pixel);
 
     /// Draw overlay to render target
     void draw(sf::RenderTarget& target) const;
+
+    bool handle_event(const sf::Event& event, TrailSystem& trails, OrbitPredictor& orbits);
 
     /// Toggle controls help panel
     void toggle_help() { m_show_help = !m_show_help; }
@@ -42,6 +48,8 @@ private:
     std::string m_diag_text;
     std::string m_selected_text;
     std::string m_help_text;
+
+    mutable sf::FloatRect m_clear_btn_bounds;
 
     void draw_panel(sf::RenderTarget& t,
                     float x, float y, float w,

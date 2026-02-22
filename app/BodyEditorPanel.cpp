@@ -251,8 +251,8 @@ void BodyEditorPanel::draw(sf::RenderTarget& target, Simulation& sim)
         return;
     }
 
-    const float log_r_min = std::log(1.0e3);
-    const float log_r_max = std::log(1.0e12);
+    const double log_r_min = std::log(1.0e3);
+    const double log_r_max = std::log(1.0e12);
     const double log_m_min = std::log(1.0e10);
     const double log_m_max = std::log(1.0e35);
 

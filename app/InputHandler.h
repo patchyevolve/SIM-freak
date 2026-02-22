@@ -13,6 +13,8 @@
 #include <functional>
 #include <optional>
 
+class OrbitPredictor;
+
 /// Result returned by InputHandler::handle_event()
 enum class InputResult
 {
@@ -28,7 +30,8 @@ public:
 
     /// Process one SFML event. Returns InputResult if a special action was triggered.
     InputResult handle_event(const sf::Event& event,
-                             sf::RenderWindow& window);
+                             sf::RenderWindow& window,
+                             OrbitPredictor& orbits);
 
     /// Called every frame (for continuous middle-button drag)
     void update(sf::RenderWindow& window);
@@ -43,6 +46,9 @@ public:
 
     /// If OpenAddBodyDialog was returned after place-mode click, returns that world position (and clears it).
     std::optional<Vec2> take_place_at();
+
+    /// Load a specific simulation preset (sets camera zoom, time warp, etc.)
+    void load_preset(PresetType p);
 
 private:
     Simulation&  m_sim;
@@ -68,7 +74,6 @@ private:
     void on_left_click(sf::Vector2f screen_pos);
     void on_left_drag_start(sf::Vector2f screen_pos);
     void on_left_drag_end(sf::Vector2f screen_pos);
-    void load_preset(PresetType p);
     void try_save();
     void try_load();
 };

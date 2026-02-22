@@ -328,7 +328,7 @@ std::vector<Body> make_collision(double G)
     p1.kind = BodyKind::Planet;
     p1.mass_kg = 5.972e24;
     p1.radius_m = 6.371e6;
-    p1.pos = { -2e7, 0 };
+    p1.pos = { -5e7, 0 };
     p1.vel = { 2500, 0 };
     p1.composition.oxygen = 0.45f;
     bodies.push_back(p1);
@@ -340,7 +340,7 @@ std::vector<Body> make_collision(double G)
     p2.kind = BodyKind::Planet;
     p2.mass_kg = 4.867e24;
     p2.radius_m = 6.052e6;
-    p2.pos = { 2e7, 1e6 }; // slight offset for realistic grazing
+    p2.pos = { 5e7, 1e6 }; // slight offset for realistic grazing
     p2.vel = { -2500, 100 };
     p2.composition.oxygen = 0.3f;
     bodies.push_back(p2);

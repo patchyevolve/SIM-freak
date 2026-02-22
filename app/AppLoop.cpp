@@ -23,10 +23,12 @@ AppLoop::AppLoop(unsigned width, unsigned height)
       m_window_size(width, height)
 {
     m_window.setFramerateLimit(60);
+    m_window.setVerticalSyncEnabled(true);
 
     // Initialise render texture for post-processing
     if (!m_scene_texture.create(width, height))
         std::cerr << "[Error] Could not create scene render texture.\n";
+    m_scene_sprite.setTexture(m_scene_texture.getTexture());
 
     // Load lensing shader
     if (!sf::Shader::isAvailable())
@@ -48,7 +50,6 @@ AppLoop::AppLoop(unsigned width, unsigned height)
         std::cerr << "[Warning] Could not load font — text will be absent.\n";
 
     generate_starfield(width, height);
-    load_default_preset();
 
     // ── Event Subscriptions ──────────────────────────────────────────────────
     
@@ -66,6 +67,15 @@ AppLoop::AppLoop(unsigned width, unsigned height)
     if (!Gravity::InitGPU()) {
         std::cerr << "[Warning] GPU Gravity Init failed. Falling back to CPU Physics.\n";
     }
+
+    // ── Initial Load ──────────────────────────────────────────────────────────
+    // Wire up trail cleanup here so it's globally active
+    m_sim.events.on_collision.subscribe([this](const EvCollision& ev) {
+        m_trails.remove(ev.absorbed.id);
+    });
+
+    // Use InputHandler to load the initial preset to centralize zoom/time settings
+    m_input.load_preset(PresetType::SolarSystem);
 }
 
 AppLoop::~AppLoop()
@@ -77,55 +87,86 @@ AppLoop::~AppLoop()
 
 void AppLoop::generate_starfield(unsigned width, unsigned height)
 {
-    std::mt19937 rng(42);
+    std::mt19937 rng(1337); 
     std::uniform_real_distribution<float> rx(0.f, static_cast<float>(width));
     std::uniform_real_distribution<float> ry(0.f, static_cast<float>(height));
-    std::uniform_real_distribution<float> rs(0.3f, 1.4f);
-    std::uniform_int_distribution<int>    rb(160, 255);
-
-    m_stars.reserve(300);
-    for (int i = 0; i < 300; ++i)
+    std::uniform_real_distribution<float> r01(0.f, 1.f);
+    
+    m_stars.clear();
+    m_stars.reserve(500);
+    
+    for (int i = 0; i < 500; ++i)
     {
-        sf::CircleShape star(rs(rng));
-        star.setPosition(rx(rng), ry(rng));
-        int b = rb(rng);
-        star.setFillColor(sf::Color(b, b, b, 180));
-        m_stars.push_back(star);
+        Star s;
+        s.pos = { rx(rng), ry(rng) };
+        float type_roll = r01(rng);
+
+        if (type_roll < 0.6f) {
+            // Type A: Standard distant star
+            s.radius = 0.2f + r01(rng) * 0.6f;
+            int b = 150 + static_cast<int>(r01(rng) * 105.f);
+            s.color = sf::Color(b, b, b - 20, 160); // Slightly warm white
+            s.depth = 0.05f + r01(rng) * 0.1f;
+        } 
+        else if (type_roll < 0.85f) {
+            // Type B: Distant Galaxy / Nebula patch
+            s.radius = 0.8f + r01(rng) * 1.5f;
+            // Tint: subtle blues/purples/pinks
+            int r = 50 + static_cast<int>(r01(rng) * 50);
+            int g = 50 + static_cast<int>(r01(rng) * 50);
+            int b = 100 + static_cast<int>(r01(rng) * 80);
+            s.color = sf::Color(r, g, b, 70); // Very dim/ethereal
+            s.depth = 0.01f + r01(rng) * 0.03f; // Background (almost fixed)
+        }
+        else {
+            // Type C: Near-plane Debris / Asteroids
+            s.radius = 0.5f + r01(rng) * 1.2f;
+            int g = 80 + static_cast<int>(r01(rng) * 40);
+            s.color = sf::Color(g + 10, g, g - 10, 120); // Greyish-brown
+            s.depth = 0.3f + r01(rng) * 0.4f; // Fore-ground (fast parallax)
+        }
+        m_stars.push_back(s);
     }
 }
 
-// ── Default preset ─────────────────────────────────────────────────────────────
-
-void AppLoop::load_default_preset()
+void AppLoop::on_resize(unsigned width, unsigned height)
 {
-    m_sim.clear_bodies();
-    m_trails.clear();
+    m_window_size = { width, height };
+    m_window.setView(sf::View(sf::FloatRect(0.f, 0.f, (float)width, (float)height)));
+    
+    // 1. Update Camera
+    m_cam.set_screen_size(m_window_size);
 
-    auto bodies = Presets::make_solar_system(m_sim.config().G);
-    for (auto& b : bodies) m_sim.add_body(b);
+    // 2. Re-create off-screen buffer
+    if (!m_scene_texture.create(width, height))
+        std::cerr << "[Error] Could not resize scene render texture.\n";
+    
+    m_scene_texture.setSmooth(true);
+    
+    // 3. Update sprite for the new texture
+    m_scene_sprite.setTexture(m_scene_texture.getTexture(), true);
 
-    // Wire event: remove trails on collision merge
-    m_sim.events.on_collision.subscribe([this](const EvCollision& ev)
-    {
-        m_trails.remove(ev.absorbed.id);
-    });
-
-    // Snapshot initial energy for drift diagnostics
-    m_initial_energy = m_sim.diagnostics().total_energy_J;
-
-    // Start at a lower warp for better initial control (100.0x)
-    m_sim.set_time_warp(100.0);
-
-    // Zoom to show inner solar system (Mars orbit ~2.3e11 m radius)
-    m_cam.set_zoom(1.2e9);  // ~2.3e11 / 600px ≈ fits Mars orbit nicely
-    m_cam.set_center({});
+    // 4. Regenerate starfield to cover the new area
+    generate_starfield(width, height);
 }
-
 // ── Render ────────────────────────────────────────────────────────────────────
 
 void AppLoop::draw_starfield(sf::RenderTarget& t)
 {
-    for (const auto& s : m_stars) t.draw(s);
+    sf::CircleShape starShape;
+    for (const auto& s : m_stars)
+    {
+        // Static position in screen space (wrapping removed as stars are fixed to screen)
+        float px = s.pos.x;
+        float py = s.pos.y;
+
+        starShape.setRadius(s.radius);
+        starShape.setOrigin(s.radius, s.radius);
+        starShape.setPosition(px, py);
+        starShape.setFillColor(s.color);
+        
+        t.draw(starShape);
+    }
 }
 
 void AppLoop::render_frame()
@@ -218,8 +259,37 @@ void AppLoop::run()
             if (m_editor_panel.handle_event(event, m_window, m_sim))
                 continue;
 
-            // 2. Main Input (Simulation interactions)
-            auto ir = m_input.handle_event(event, m_window);
+            // 2. HUD interaction (Clear Trails button etc)
+            if (m_hud.handle_event(event, m_trails, m_orbit_predictor))
+                continue;
+
+            // 3. Main Input (Simulation interactions)
+            auto ir = m_input.handle_event(event, m_window, m_orbit_predictor);
+            
+            // 3. App-level Global Keys (Resize/Fullscreen)
+            if (event.type == sf::Event::Resized)
+            {
+                on_resize(event.size.width, event.size.height);
+            }
+            else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F11)
+            {
+                m_is_fullscreen = !m_is_fullscreen;
+                if (m_is_fullscreen) {
+                    auto mode = sf::VideoMode::getDesktopMode();
+                    m_window.create(mode, "simSUS — Fullscreen", sf::Style::Fullscreen);
+                    on_resize(mode.width, mode.height);
+                } else {
+                    m_window.create(sf::VideoMode(1280, 800), "simSUS", sf::Style::Default);
+                    on_resize(1280, 800);
+                }
+                m_window.setFramerateLimit(60);
+                m_window.setVerticalSyncEnabled(true);
+            }
+            else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::H)
+            {
+                m_hud.toggle_help();
+            }
+
             if (ir == InputResult::QuitRequested)
                 m_window.close();
             else if (ir == InputResult::OpenAddBodyDialog)
@@ -249,17 +319,25 @@ void AppLoop::run()
 
         // ── HUD update ────────────────────────────────────────────────────────
         const Body* sel = m_input.selected_body();
-        m_hud.update(m_sim, sel, fps, m_initial_energy);
+        m_hud.update(m_sim, sel, fps, m_initial_energy, m_cam.meters_per_pixel());
         m_editor_panel.set_selection(m_input.selected_id());
 
         // ── Orbit Prediction ──────────────────────────────────────────────────
         // Throttle to every 4 frames to save CPU, or update once if paused
         static int orbit_tick = 0;
-        if (sel && (!m_sim.is_paused() ? (++orbit_tick >= 4) : (orbit_tick != -1)))
+        if (sel && sel->alive)
         {
-            m_orbit_predictor.update(m_sim, sel->id);
-            if (!m_sim.is_paused()) orbit_tick = 0;
-            else orbit_tick = -1; // Flag that we updated while paused
+            if (!m_sim.is_paused() ? (++orbit_tick >= 4) : (orbit_tick != -1))
+            {
+                m_orbit_predictor.update(m_sim, sel->id);
+                if (!m_sim.is_paused()) orbit_tick = 0;
+                else orbit_tick = -1; // Flag that we updated while paused
+            }
+        }
+        else
+        {
+            m_orbit_predictor.clear();
+            orbit_tick = 0;
         }
         if (!m_sim.is_paused() && orbit_tick == -1) orbit_tick = 0;
 

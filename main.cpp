@@ -8,7 +8,7 @@
 //    simSUS.exe --preset solar         — 365-tick CLI demo
 //    simSUS.exe --preset binary        — binary star CLI demo
 //    simSUS.exe --preset figure8       — figure-8 CLI demo
-//    simSUS.exe --save <path>          — save solar system snapshot
+//    simSUS.exe --save <path>          — save solar system snapshotD:\codeWorks\simPUS\render\grid.vert
 //    simSUS.exe --load <path>          — load and run snapshot
 //
 //  Build in Visual Studio:

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "InputHandler.h"
+#include "../render/OrbitPredictor.h"
 #include "../io/State.h"
 #include <algorithm>
 #include <cmath>
@@ -83,26 +84,26 @@ void InputHandler::load_preset(PresetType p)
     switch (p)
     {
     case PresetType::SolarSystem:
-        zoom = 8e9;
+        zoom = 355500000.0; // 355,500 km/px
         break;
     case PresetType::BinaryStar:
-        zoom = 1e11;
+        zoom = 1000000000.0; // 1.0M km/p
         break;
     case PresetType::Figure8:
-        zoom = 10.0;
+        zoom = 385000000.0; // 385,000 km/px
         break;
     case PresetType::BlackHole:
-        zoom = 2e12;
+        zoom = 3000000000.0; // 3.0M km/p
         m_trails.max_age_s = 2.5 * 24.0 * 3600.0; // Shorter trails for BH
         break;
     case PresetType::Collision:
-        zoom = 1e11;
+        zoom = 500000.0; // 500 km/px
         break;
     case PresetType::Nebula:
-        zoom = 5e12;
+        zoom = 3500000000.0; // 3.5M km/p
         break;
     case PresetType::GalaxySmall:
-        zoom = 1e13; // 10,000 AU scale
+        zoom = 6e15; // Adjusted for the 20,000 AU scale
         break;
     }
 
@@ -145,7 +146,8 @@ void InputHandler::try_load()
 // ── Event pump ────────────────────────────────────────────────────────────────
 
 InputResult InputHandler::handle_event(const sf::Event& event,
-                                       sf::RenderWindow& window)
+                                       sf::RenderWindow& window,
+                                       OrbitPredictor& orbits)
 {
     // ── Window close ──────────────────────────────────────────────────────────
     if (event.type == sf::Event::Closed)
@@ -159,10 +161,16 @@ InputResult InputHandler::handle_event(const sf::Event& event,
         case sf::Keyboard::Escape:
             m_selected_id.clear();
             m_cam.set_follow(nullptr);
+            orbits.clear();
             break;
 
         case sf::Keyboard::Space:
             m_sim.set_paused(!m_sim.is_paused());
+            break;
+
+        case sf::Keyboard::C:
+            m_trails.clear();
+            orbits.clear();
             break;
 
         case sf::Keyboard::LBracket:
@@ -263,16 +271,6 @@ InputResult InputHandler::handle_event(const sf::Event& event,
             on_left_drag_end({ static_cast<float>(event.mouseButton.x),
                                static_cast<float>(event.mouseButton.y) });
         }
-    }
-
-    // ── Window resize ─────────────────────────────────────────────────────────
-    if (event.type == sf::Event::Resized)
-    {
-        sf::FloatRect vis_area(0.f, 0.f,
-                               static_cast<float>(event.size.width),
-                               static_cast<float>(event.size.height));
-        window.setView(sf::View(vis_area));
-        m_cam.set_screen_size({ event.size.width, event.size.height });
     }
 
     return InputResult::None;

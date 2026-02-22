@@ -57,9 +57,19 @@ private:
     // ── Sub-routines ──────────────────────────────────────────────────────────
     void load_default_preset();
     void render_frame();
+    void on_resize(unsigned width, unsigned height);
     void draw_starfield(sf::RenderTarget& t);
 
-    // Starfield (generated once)
-    std::vector<sf::CircleShape> m_stars;
+    // Starfield (dynamic parallax)
+    struct Star {
+        sf::Vector2f pos;     // Base position in screen space
+        float        radius;
+        sf::Color    color;
+        float        depth;   // 0.0 to 1.0 (far to near)
+    };
+    std::vector<Star> m_stars;
     void generate_starfield(unsigned width, unsigned height);
+
+    // Fullscreen state
+    bool m_is_fullscreen = false;
 };

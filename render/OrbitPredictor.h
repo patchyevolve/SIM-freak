@@ -20,6 +20,9 @@ public:
     /// Draw the predicted path
     void draw(sf::RenderTarget& target, const Camera& cam) const;
 
+    /// Clear the current predicted path
+    void clear() { m_path.clear(); }
+
 private:
     struct PathNode {
         Vec2 pos;
