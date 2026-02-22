@@ -67,9 +67,13 @@ void Simulation::step_sim(double sim_dt_s)
     double floor_dt = (nb > 5000) ? 3600.0 * 2.0 : 1.0; // 2 hour floor for galaxy
     
     const double MAX_dt = 7200.0; // 2 hours
-    int step_cap = (nb > LARGE_N_THRESHOLD) ? 32 : MAX_STEPS_SMALL_N;
-    if (steps > step_cap) steps = step_cap;
-
+    double target_sub_dt = std::clamp(safety_dt, floor_dt, MAX_dt);
+    
+    int steps = std::max(1, (int)std::ceil(sim_dt_s / target_sub_dt));
+    
+    // Absolute cap on sub-steps to preserve frame-rate during extreme warp
+    if (steps > 128) steps = 128;
+    
     double sub_dt = sim_dt_s / static_cast<double>(steps);
 
     // ── Phase 21: Relativistic Dilation ─────────────────────────────────────
