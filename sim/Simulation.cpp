@@ -190,11 +190,6 @@ static constexpr int MAX_COLLISION_ITERATIONS = 20;  // Cap to avoid freeze with
 
 void Simulation::resolve_collisions()
 {
-    bool any_merged = true;
-    int iterations = 0;
-
-void Simulation::resolve_collisions()
-{
     const size_t n = m_bodies.size();
     if (n < 2) return;
 
