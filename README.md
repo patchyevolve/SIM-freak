@@ -1,87 +1,68 @@
 # simSUS — Solar System & N-Body Simulation Engine (C++)
 
-A high-performance, real-time gravitational simulation engine built with C++17 and SFML. `simSUS` simulates celestial bodies under Newtonian gravity with high numerical stability, advanced physics solvers, and high-fidelity interactive visualization.
+A high-performance, real-time gravitational simulation engine built with C++17 and SFML. `simSUS` is a multi-layered physics laboratory featuring relativistic rendering, stellar evolution, and scalable N-body solvers.
 
-![simSUS Logo](https://raw.githubusercontent.com/patchyevolve/SIM-freak/main/logo.png) <!-- Note: Replace with actual logo link if available -->
+- [GitHub Repository](https://github.com/patchyevolve/SIM-freak)
 
 ## 🚀 Physics & Solvers
 
 - **Dual Gravity Kernels**:
   - **O(n²) Direct Sum**: High-accuracy pairwise interactions for small to medium counts.
-  - **O(n log n) Barnes-Hut**: Optimized quadtree-based gravity solver for massive body counts (O(n log n) complexity).
-- **Pluggable Integrators**:
-  - **RK4 (Runge-Kutta 4th Order)**: Default high-precision integrator.
-  - **Symplectic Euler**: Energy-conserving first-order integrator for fast simulations.
-  - **Velocity Verlet**: Balanced stability and speed with good long-term energy behavior.
-- **Sub-Stepping**: Performance-tuned temporal sub-stepping for stable simulation at high time-warps.
-- **Inelastic Collisions**: Momentum-conserving merge policy with volume-additive mass integration.
+  - **O(n log n) Barnes-Hut**: Quadtree-based solver for massive simulations (10,000+ bodies).
+- **Stellar Evolution Suite**:
+  - **Composition-Based Aging**: Bodies track Hydrogen, Helium, Silicates, and Iron.
+  - **Relativistic Lifecycle**: Automated transitions from Main Sequence → Red Giant → Neutron Star/Black Hole based on core density and mass limits (Chandrasekhar-ish).
+  - **Thermodynamics**: Surface temperature and luminosity modeling.
+- **Advanced Dynamics**:
+  - **Pluggable Integrators**: RK4, Symplectic Euler, and Velocity Verlet.
+  - **Collision & Fragmentation**: Inelastic merging OR high-energy fragmentation/shattering based on impact velocity.
+  - **Passive Body Optimization**: `is_passive` flag for massive particles (e.g., dust clouds, galactic arms) that respond to gravity without exerting it.
 
 ## 🪐 Simulation Presets
 
-Equipped with 7 built-in initial condition generators:
 1. **Solar System**: Accurate SI-unit approximation of the inner and outer planets.
 2. **Binary Star**: Stable orbital dance of two high-mass bodies.
 3. **Figure-8**: Classic restricted 3-body solution showing gravitational choreography.
-4. **Black Hole**: High-mass singularity with relativistic visual distortion.
-5. **Collision**: High-speed impact scenario designed to test merge logic.
-6. **Nebula**: Large-scale chaotic cloud collapse.
-7. **Small Galaxy**: Spiral-arm formation with thousands of star-mass particles.
+4. **Black Hole**: Gargantua-class singularity with relativistic light bending.
+5. **Collision**: High-speed impact scenario designed to test merge and fragmentation logic.
+6. **Nebula**: Large-scale chaotic cloud collapse with 2000+ particles.
+7. **Small Galaxy**: Spiral-arm formation with 10,000+ particles utilizing Barnes-Hut.
 
-## 🎨 Advanced Rendering & UI
+## 🎨 High-Fidelity Rendering
 
-- **High-Fidelity Visuals**:
-  - **Gravitational Lensing**: Real-time GLSL fragment shaders for relativistic light bending around black holes.
-  - **Atmosphere & Rings**: Specialized rendering routines for gas giants and terrestrial planets.
-  - **Sphere of Influence (SOI)**: Visualized radius of gravitational dominance for massive bodies.
-  - **Trail System**: Alpha-faded temporal trails tracking historical orbital paths.
-- **Adaptive Visualization**:
-  - **LOD (Level of Detail) Batching**: Efficiently render thousands of bodies using vertex batching for distant objects.
-  - **Orbit Prediction**: Real-time orbital path projection based on current state.
-  - **Coordinate Grid**: Deformable spatial grid for orientation and diagnostics.
-- **Interactive Controls**:
-  - **Camera**: Smooth zoom-to-cursor and middle-drag panning.
-  - **Follow Mode**: Lock camera to any selected body (ideal for planetary tracking).
-  - **Selection HUD**: Real-time diagnostics (mass, velocity, surface gravity, periapsis estimate).
+- **Relativistic Visuals**:
+  - **Gravitational Lensing**: Real-time GLSL light bending and event horizon distortion.
+  - **Accretion Effects**: Accretion disk glows and intensity halos for singularities.
+  - **Atmosphere & Rings**: Multi-layered atmospheric scattering and orbital ring rendering.
+  - **Sphere of Influence (SOI)**: Visualized dominance zones for gravitational capture.
+- **Adaptive HUD & Analysis**:
+  - **Live Diagnostics**: Real-time Energy (J), Momentum (kg·m/s), and Sim-time tracking.
+  - **Orbit Predictor**: Forward-projected path lines for all active bodies.
+  - **Body Editor**: Runtime adjustment of mass, composition, and visual style.
+  - **LOD Batching**: Vertex-batched rendering for massive particle counts.
 
 ## 🛠 Tech Stack
 
-- **Language**: C++17
-- **Graphics & Windowing**: [SFML 2.5+](https://www.sfml-dev.org/)
-- **GPU Acceleration**: GLSL (Shaders for Lensing, Grids, and Compute)
-- **Serialization**: [nlohmann/json](https://github.com/nlohmann/json)
-- **Build**: Visual Studio 2019/2022 (NuGet optimized)
+- **C++17 Core**: Strict SI-unit physics and data-oriented design.
+- **SFML 2.5+**: Windowing, input, and 2D graphics.
+- **OpenGL/GLSL**: Fragment shaders for lensing, grids, and future compute acceleration.
+- **nlohmann/json**: Versioned snapshot system for state persistence.
 
-## 🏗 Build & Run
+## 🏗 Build & Usage
 
-### Build
-1. Open the solution in **Visual Studio**.
-2. Install **SFML** via NuGet (`SFML_VS2019` or `SFML_VS2022`).
-3. Ensure **C++17 Standrard** is enabled in Project Properties.
-4. Build in **Release** mode for performance.
-
-### CLI Usage
 ```bash
-simSUS.exe                   # GUI Mode (Default: Solar System)
-simSUS.exe --test            # Run all internal unit tests
-simSUS.exe --preset <type>   # Load specific preset (binary, figure8, blackhole, nebula, etc.)
-simSUS.exe --save <path>     # Snapshot current state to JSON
-simSUS.exe --load <path>     # Resume simulation from JSON
+# GUI Mode (Default)
+simSUS.exe
+
+# Management & Performance
+simSUS.exe --test            # Run core math/physics unit tests
+simSUS.exe --preset <name>   # load binary, figure8, blackhole, nebula, galaxy
+simSUS.exe --save <path>     # Snapshot to JSON
+simSUS.exe --load <path>     # Resume from JSON
 ```
 
-### Controls
-- **Scroll**: Zoom (preserves focus)
-- **Middle Click**: Pan
-- **Left Click**: Select body
-- **F**: Toggle Follow Mode
-- **P**: Pause
-- **Numbers (1-7)**: Switch Presets
-
-## 🧪 Modules
-- `math/`: Fast `Vec2` primitives and vector algebra.
-- `physics/`: Integrators, BH Tree, and Gravity laws.
-- `domain/`: Unified `Body` and `SimulationState` models.
-- `sim/`: Collision resolution, event dispatcher, and presets.
-- `render/`: Quadtree batching, GLSL shaders, camera, and HUD systems.
+- **Scroll**: Zoom focus | **Middle Drag**: Pan | **Left Click**: Select
+- **F**: Follow Mode | **P**: Pause | **1-7**: Switch Presets
 
 ---
 Developed by [patchyevolve](https://github.com/patchyevolve)
