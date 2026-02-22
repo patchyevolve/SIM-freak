@@ -161,7 +161,6 @@ void Simulation::step_sim(double sim_dt_s)
 
     sweep_dead_bodies();
     m_sim_time_s += sim_dt_s;
-    ++m_step_count;
 }
 
 // ── Body management ───────────────────────────────────────────────────────────

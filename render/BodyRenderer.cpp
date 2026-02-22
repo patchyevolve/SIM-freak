@@ -51,12 +51,12 @@ sf::Color BodyRenderer::body_color(const Body& b, const Camera& cam) const
     float b_val = static_cast<float>(base.b);
 
     if (total_z > 0) { // Redshift
-        float factor = static_cast<float>(std::min(1.0, total_z * 2.0));
+        float factor = static_cast<float>(std::min(0.7, total_z * 0.5)); // Damped
         r = r + (255.0f - r) * factor;
         g = g * (1.0f - factor * 0.5f);
         b_val = b_val * (1.0f - factor * 0.8f);
     } else { // Blueshift
-        float factor = static_cast<float>(std::min(1.0, -total_z * 5.0));
+        float factor = static_cast<float>(std::min(0.7, -total_z * 1.5)); // Damped
         r = r * (1.0f - factor * 0.8f);
         g = g * (1.0f - factor * 0.3f);
         b_val = b_val + (255.0f - b_val) * factor;
@@ -271,20 +271,18 @@ void BodyRenderer::draw_all(sf::RenderTarget& target,
     float sh = static_cast<float>(screen_size.y);
     float margin = 50.0f; // Culling margin
 
-    // 3. Batch arrays for low-detail bodies
-    sf::VertexArray particle_batch(sf::Quads);
+    // 3. Batch arrays for low-detail bodies (Particles as octagons)
+    sf::VertexArray particle_batch(sf::Triangles);
     particle_batch.clear();
 
     // 4. Sort/Filter passes
-    // Pass A: Background effects & Batched particles
-    // Pass B: High-detail complex bodies (Foreground)
     std::vector<const Body*> high_detail_list;
 
     for (const auto& b : bodies) {
         if (!b.alive) continue;
 
         sf::Vector2f sp = cam.world_to_screen(b.pos);
-        float radius = clamped_radius(b, cam);
+        float r = clamped_radius(b, cam);
 
         // Frustum Culling
         if (sp.x < -margin || sp.x > sw + margin ||
@@ -293,21 +291,33 @@ void BodyRenderer::draw_all(sf::RenderTarget& target,
         bool is_selected = (b.id == selected_id);
         
         // Stars and Black Holes are usually "high detail", but for 10,000 bodies
-        // we MUST batch the stars if they are small enough, or we drop to 1 FPS.
+        // we MUST batch the stars if they are tiny, or we drop to 1 FPS.
         bool force_high_detail = (b.kind == BodyKind::BlackHole || is_selected);
-        bool is_large = (radius > LOD_BATCH_THRESHOLD);
+        bool is_large = (r > LOD_BATCH_THRESHOLD);
 
         if (force_high_detail || is_large) {
             high_detail_list.push_back(&b);
         } else {
-            // Batch this tiny body (including small stars) as a simple colored quad
             sf::Color color = body_color(b, cam);
-            float r = radius; 
             
-            particle_batch.append(sf::Vertex({sp.x - r, sp.y - r}, color));
-            particle_batch.append(sf::Vertex({sp.x + r, sp.y - r}, color));
-            particle_batch.append(sf::Vertex({sp.x + r, sp.y + r}, color));
-            particle_batch.append(sf::Vertex({sp.x - r, sp.y + r}, color));
+            // Octagon approximation (8 points)
+            // Center is implied by the triangle fan-ish structure we'll build
+            static const float s = 0.7071f; // sin(45)
+            sf::Vector2f offsets[8] = {
+                {r, 0}, {r*s, r*s}, {0, r}, {-r*s, r*s},
+                {-r, 0}, {-r*s, -r*s}, {0, -r}, {r*s, -r*s}
+            };
+
+            // 6 triangles per octagon (8 vertices -> center + 8 ring)
+            // Simpler: just use a cross + corners (Quad with snipped corners)
+            // For extreme performance, we use a 4x4 diamond or 8-vert fan
+            sf::Vector2f v_center = sp;
+            for (int i = 0; i < 8; ++i) {
+                int next = (i + 1) % 8;
+                particle_batch.append(sf::Vertex(v_center, color));
+                particle_batch.append(sf::Vertex(v_center + offsets[i], color));
+                particle_batch.append(sf::Vertex(v_center + offsets[next], color));
+            }
         }
     }
 
