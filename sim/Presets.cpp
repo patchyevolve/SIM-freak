@@ -407,16 +407,12 @@ std::vector<Body> make_galaxy_small(double G)
     // We use a randomized distribution to prevent artificial lattice patterns.
     std::mt19937 rng(1337);
     std::uniform_real_distribution<double> dist_angle(0.0, 2.0 * 3.14159265);
-    // Gaussian-ish radial distribution for a more natural cluster/galaxy look
-    std::normal_distribution<double> dist_r(5e11, 4e11); 
+    // Megascale Expansion: R_min = 3e13 (~200 AU) to R_max = 5e15 (~33,000 AU)
+    // Using sqrt(uniform) gives constant density per unit area (true disk feel).
+    std::uniform_real_distribution<double> dist_r2(9e26, 2.5e31); 
 
     for (int i = 0; i < 10000; ++i) {
-        double r = 0.0;
-        // Ensure stars don't spawn inside or too close to the event horizon (Rs ~ 3e10m)
-        while (r < 1.2e11) {
-            r = std::abs(dist_r(rng));
-        }
-        
+        double r = std::sqrt(dist_r2(rng));
         double angle = dist_angle(rng);
         
         Body s;
