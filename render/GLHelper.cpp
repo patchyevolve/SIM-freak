@@ -74,11 +74,11 @@ namespace GLHelper
         return true;
     }
 
-    GLuint CreateComputeProgram(const std::string& filename)
+    GLuint CreateComputeProgram(const std::string& filename, bool silent)
     {
         std::ifstream file(filename);
         if (!file.is_open()) {
-            std::cerr << "[Error] Failed to open shader file: " << filename << "\n";
+            if (!silent) std::cerr << "[Error] Failed to open shader file: " << filename << "\n";
             return 0;
         }
         std::stringstream ss;

@@ -194,7 +194,7 @@ bool InitGPU()
         "bin/physics/gravity.comp" 
     };
     for (const char* p : paths) {
-        g_compute_program = GLHelper::CreateComputeProgram(p);
+        g_compute_program = GLHelper::CreateComputeProgram(p, true);
         if (g_compute_program != 0) break;
     }
     

@@ -92,5 +92,5 @@ namespace GLHelper
     bool Init();
 
     /// Create a Compute Program from a shader file.
-    GLuint CreateComputeProgram(const std::string& filename);
+    GLuint CreateComputeProgram(const std::string& filename, bool silent = false);
 }
