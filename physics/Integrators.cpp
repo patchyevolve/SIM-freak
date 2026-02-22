@@ -95,6 +95,72 @@ static Vec2 compute_drag_accel(const Body& b, const std::vector<Body>& all_bodie
     return total_drag_accel;
 }
 
+// ── Solar Wind Force Calculation ──────────────────────────────────────────────
+static Vec2 compute_solar_wind_accel(Body& b, const std::vector<Body>& all_bodies,
+                                     const std::vector<size_t>& star_host_indices)
+{
+    if (b.flags.immovable || b.mass_kg <= 0.0) return Vec2{};
+
+    Vec2 total_wind_accel{};
+    for (size_t idx : star_host_indices)
+    {
+        const Body& star = all_bodies[idx];
+        if (&b == &star || !star.alive || star.solar_wind_power <= 0.0) continue;
+
+        Vec2 diff = b.pos - star.pos;
+        double d2 = diff.norm_sq();
+        double d = std::sqrt(d2);
+        if (d < star.radius_m) continue;
+
+        // F_wind = Power * Area / (4 * pi * d²)
+        double cross_section = 3.14159265 * b.radius_m * b.radius_m;
+        double f_wind = (star.solar_wind_power * cross_section) / (4.0 * 3.14159265 * d2);
+        
+        // Magnetic Shielding: Field strength deflects wind
+        // 1 Gauss (1e-4 T) = very strong deflection
+        double deflection = std::min(0.99, b.magnetic_field_T * 1e5); 
+        
+        double f_applied = f_wind * (1.0 - deflection);
+        total_wind_accel += (diff / d) * (f_applied / b.mass_kg);
+
+        // Update aurora intensity (visual feedback of deflection interaction)
+        if (deflection > 0.1) {
+            float interaction = static_cast<float>((f_wind / b.mass_kg) * 1e11 * deflection);
+            b.render.aurora_intensity = std::clamp(interaction, 0.0f, 1.0f);
+        }
+    }
+    return total_wind_accel;
+}
+
+// ── Radiation Pressure Calculation ───────────────────────────────────────────
+static Vec2 compute_radiation_pressure_accel(const Body& b, const std::vector<Body>& all_bodies,
+                                             const std::vector<size_t>& star_host_indices)
+{
+    if (b.flags.immovable || b.mass_kg <= 0.0) return Vec2{};
+
+    Vec2 total_rad_accel{};
+    const double AU = 1.496e11;
+
+    for (size_t idx : star_host_indices)
+    {
+        const Body& star = all_bodies[idx];
+        if (&b == &star || !star.alive || star.radiation_pressure <= 0.0) continue;
+
+        Vec2 diff = b.pos - star.pos;
+        double d2 = diff.norm_sq();
+        double d = std::sqrt(d2);
+        if (d < star.radius_m) continue;
+
+        // P = P_1AU * (1AU / d)²
+        double p = star.radiation_pressure * (AU * AU / d2);
+        double cross_section = 3.14159265 * b.radius_m * b.radius_m;
+        double f_rad = p * cross_section;
+        
+        total_rad_accel += (diff / d) * (f_rad / b.mass_kg);
+    }
+    return total_rad_accel;
+}
+
 // Build list of atmospheric host indices (bodies with has_atmos) — O(n) once per step
 static std::vector<size_t> collect_atmos_hosts(const std::vector<Body>& bodies)
 {
@@ -106,12 +172,23 @@ static std::vector<size_t> collect_atmos_hosts(const std::vector<Body>& bodies)
     return idx;
 }
 
+static std::vector<size_t> collect_star_hosts(const std::vector<Body>& bodies)
+{
+    std::vector<size_t> idx;
+    idx.reserve(8);
+    for (size_t i = 0; i < bodies.size(); ++i)
+        if (bodies[i].alive && bodies[i].kind == BodyKind::Star)
+            idx.push_back(i);
+    return idx;
+}
+
 static std::vector<Derivative> eval_derivatives(
     const std::vector<Body>& base,
     const std::vector<Derivative>& delta,
     double scale,
     double G, double softening_m,
-    const std::vector<size_t>& atmos_hosts)
+    const std::vector<size_t>& atmos_hosts,
+    const std::vector<size_t>& star_hosts)
 {
     // High-Performance Shadow State: 
     // We avoid deep-copying 10,000 Body objects (strings, events, etc.) 
@@ -137,12 +214,15 @@ static std::vector<Derivative> eval_derivatives(
         shadow_bodies[i].atmos     = base[i].atmos;
         shadow_bodies[i].mass_kg   = base[i].mass_kg;
         shadow_bodies[i].radius_m  = base[i].radius_m;
+        shadow_bodies[i].magnetic_field_T = base[i].magnetic_field_T;
+        shadow_bodies[i].solar_wind_power = base[i].solar_wind_power;
+        shadow_bodies[i].kind      = base[i].kind;
     }
 
     // Compute accelerations on shadow state
     Gravity::compute_accelerations(shadow_bodies, G, softening_m);
 
-    // Derivatives: dpos/dt = vel,  dvel/dt = (accel + drag) * dilation
+    // Derivatives: dpos/dt = vel,  dvel/dt = (accel + drag + wind) * dilation
     std::vector<Derivative> derivs(base.size());
     for (size_t i = 0; i < base.size(); ++i)
     {
@@ -150,7 +230,9 @@ static std::vector<Derivative> eval_derivatives(
         double s = base[i].local_time_scale;
         derivs[i].dpos = shadow_bodies[i].vel * s;
         Vec2 drag_a = compute_drag_accel(shadow_bodies[i], shadow_bodies, atmos_hosts);
-        derivs[i].dvel = (shadow_bodies[i].accel + drag_a) * s;
+        Vec2 wind_a = compute_solar_wind_accel(shadow_bodies[i], shadow_bodies, star_hosts);
+        Vec2 rad_a  = compute_radiation_pressure_accel(shadow_bodies[i], shadow_bodies, star_hosts);
+        derivs[i].dvel = (shadow_bodies[i].accel + drag_a + wind_a + rad_a) * s;
     }
     return derivs;
 }
@@ -161,21 +243,22 @@ void step_rk4(std::vector<Body>& bodies,
     const size_t n = bodies.size();
     if (n == 0) return;
 
-    // Hoist expensive atmosphere scan once per RK4 step
+    // Hoist expensive host scans once per RK4 step
     auto atmos_hosts = collect_atmos_hosts(bodies);
+    auto star_hosts  = collect_star_hosts(bodies);
 
     // k1: derivatives at t
     std::vector<Derivative> zero(n, { Vec2{}, Vec2{} });
-    auto k1 = eval_derivatives(bodies, zero, 0.0, G, softening_m, atmos_hosts);
+    auto k1 = eval_derivatives(bodies, zero, 0.0, G, softening_m, atmos_hosts, star_hosts);
 
     // k2: derivatives at t + dt/2, using k1
-    auto k2 = eval_derivatives(bodies, k1, dt * 0.5, G, softening_m, atmos_hosts);
+    auto k2 = eval_derivatives(bodies, k1, dt * 0.5, G, softening_m, atmos_hosts, star_hosts);
 
     // k3: derivatives at t + dt/2, using k2
-    auto k3 = eval_derivatives(bodies, k2, dt * 0.5, G, softening_m, atmos_hosts);
+    auto k3 = eval_derivatives(bodies, k2, dt * 0.5, G, softening_m, atmos_hosts, star_hosts);
 
     // k4: derivatives at t + dt, using k3
-    auto k4 = eval_derivatives(bodies, k3, dt, G, softening_m, atmos_hosts);
+    auto k4 = eval_derivatives(bodies, k3, dt, G, softening_m, atmos_hosts, star_hosts);
 
     // Combine: state += dt/6 * (k1 + 2*k2 + 2*k3 + k4)
     for (size_t i = 0; i < n; ++i)
@@ -202,12 +285,15 @@ void step_symplectic_euler(std::vector<Body>& bodies,
 {
     Gravity::compute_accelerations(bodies, G, softening_m);
     std::vector<size_t> atmos = collect_atmos_hosts(bodies);
+    std::vector<size_t> stars = collect_star_hosts(bodies);
     for (auto& b : bodies)
     {
         if (!b.alive || b.flags.immovable) continue;
         double local_dt = dt * b.local_time_scale;
         Vec2 drag_a = compute_drag_accel(b, bodies, atmos);
-        b.vel += (b.accel + drag_a) * local_dt;
+        Vec2 wind_a = compute_solar_wind_accel(b, bodies, stars);
+        Vec2 rad_a  = compute_radiation_pressure_accel(b, bodies, stars);
+        b.vel += (b.accel + drag_a + wind_a + rad_a) * local_dt;
         b.pos += b.vel   * local_dt;
         b.proper_time_s += local_dt;
     }
@@ -222,29 +308,34 @@ void step_velocity_verlet(std::vector<Body>& bodies,
                           double dt, double G, double softening_m)
 {
     std::vector<size_t> atmos = collect_atmos_hosts(bodies);
+    std::vector<size_t> stars = collect_star_hosts(bodies);
 
-    // Half-kick, then drift — accel and drag at old position
+    // Half-kick, then drift — accel, drag, wind at old position
     Gravity::compute_accelerations(bodies, G, softening_m);
     std::vector<Vec2> accel_old(bodies.size());
     for (size_t i = 0; i < bodies.size(); ++i)
     {
         if (!bodies[i].alive || bodies[i].flags.immovable) continue;
         Vec2 drag_a = compute_drag_accel(bodies[i], bodies, atmos);
-        accel_old[i] = bodies[i].accel + drag_a;  // Store full accel (gravity + drag)
+        Vec2 wind_a = compute_solar_wind_accel(bodies[i], bodies, stars);
+        Vec2 rad_a  = compute_radiation_pressure_accel(bodies[i], bodies, stars);
+        accel_old[i] = bodies[i].accel + drag_a + wind_a + rad_a;
         double local_dt = dt * bodies[i].local_time_scale;
         bodies[i].pos += bodies[i].vel * local_dt + accel_old[i] * (0.5 * local_dt * local_dt);
         bodies[i].proper_time_s += local_dt;
     }
 
-    // Re-evaluate gravity and drag at new positions
+    // Re-evaluate gravity, drag, wind at new positions
     Gravity::compute_accelerations(bodies, G, softening_m);
 
-    // Full kick with averaged acceleration (gravity + drag)
+    // Full kick with averaged acceleration
     for (size_t i = 0; i < bodies.size(); ++i)
     {
         if (!bodies[i].alive || bodies[i].flags.immovable) continue;
         Vec2 drag_new = compute_drag_accel(bodies[i], bodies, atmos);
-        Vec2 accel_new = bodies[i].accel + drag_new;
+        Vec2 wind_new = compute_solar_wind_accel(bodies[i], bodies, stars);
+        Vec2 rad_new  = compute_radiation_pressure_accel(bodies[i], bodies, stars);
+        Vec2 accel_new = bodies[i].accel + drag_new + wind_new + rad_new;
         double local_dt = dt * bodies[i].local_time_scale;
         bodies[i].vel += (accel_old[i] + accel_new) * (0.5 * local_dt);
     }

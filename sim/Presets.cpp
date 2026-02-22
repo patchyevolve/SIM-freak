@@ -86,8 +86,14 @@ std::vector<Body> make_solar_system(double G)
     sun.render = { rgb(255, 220, 50), 12.0f, false, true, 0, false };
     sun.composition = Composition::make_star(0.73f, 0.25f);
     sun.stellar_class = StellarClass::MainSequence;
+    sun.composition = Composition::make_star();
     sun.temperature_K = 5778.0;
-    sun.luminosity_L  = 1.0;
+
+    // Phase 29C: Solar Winds & Magnetism
+    sun.magnetic_field_T = 1.0e-4;   // 1 Gauss at surface (Sun average)
+    sun.solar_wind_power = 1.3e9;    // kg/s mass loss
+    sun.radiation_pressure = 4.5e-6; // Pa at 1 AU
+
     bodies.push_back(sun);
 
     // ── Helper: create a planet ───────────────────────────────────────────────
@@ -140,6 +146,9 @@ std::vector<Body> make_solar_system(double G)
             p.has_atmos = true;
             p.atmos.surface_density_kg_m3 = 1.225;
             p.atmos.scale_height_m = 8500.0;
+            p.magnetic_field_T = 3.1e-5; // 0.31 Gauss at equator
+        } else if (p.id == "jupiter") {
+            p.magnetic_field_T = 4.3e-4; // 4.3 Gauss (Jupiter's massive field)
         } else if (p.id == "venus") {
             p.has_atmos = true;
             p.atmos.surface_density_kg_m3 = 65.0; // very thick
@@ -172,11 +181,17 @@ std::vector<Body> make_binary_star(double G)
     s1.mass_kg = M_star; s1.radius_m = 5e8;
     s1.pos = { -r_orbit, 0.0 }; s1.vel = { 0.0, -v_star };
     s1.render = { 0xFF8800FF, 10.0f, true, true, 0, false };
+    s1.magnetic_field_T = 1.0e-3; // Stronger B-field for Binary A
+    s1.solar_wind_power = 2.0e9;
+    s1.radiation_pressure = 1.0e-5;
 
     s2.id = "star2"; s2.name = "Star B"; s2.kind = BodyKind::Star;
     s2.mass_kg = M_star; s2.radius_m = 5e8;
     s2.pos = {  r_orbit, 0.0 }; s2.vel = { 0.0,  v_star };
     s2.render = { 0x4488FFFF, 10.0f, true, true, 0, false };
+    s2.magnetic_field_T = 2.0e-4;
+    s2.solar_wind_power = 1.5e9;
+    s2.radiation_pressure = 4.0e-6;
 
     bodies.push_back(s1);
     bodies.push_back(s2);

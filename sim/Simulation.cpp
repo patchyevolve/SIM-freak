@@ -49,6 +49,7 @@ void Simulation::step_sim(double sim_dt_s)
     }
 
     if (!source_idx.empty()) {
+    if (!source_idx.empty()) {
         for (size_t i : source_idx) {
             // For large N, we only check a subset of 'j' to avoid O(N^2)
             size_t step = (nb > 2000) ? nb / 100 : 1; 
@@ -57,7 +58,7 @@ void Simulation::step_sim(double sim_dt_s)
                 Vec2 d = m_bodies[i].pos - m_bodies[j].pos;
                 double r2 = d.x*d.x + d.y*d.y;
                 double mass_sum = std::max(1.0, m_bodies[i].mass_kg + m_bodies[j].mass_kg);
-                double tau = std::sqrt(r2 * std::sqrt(r2) / (G * mass_sum + 1e-10));
+                double tau = std::sqrt(r2 * std::sqrt(r2) / (m_cfg.G * mass_sum + 1e-10));
                 if (tau < min_tau) min_tau = tau;
             }
         }

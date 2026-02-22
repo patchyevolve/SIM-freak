@@ -576,38 +576,58 @@ void BodyRenderer::draw(sf::RenderTarget& target,
 
     // Phase 29B: Magnetosphere (if field exists)
     if (body.magnetic_field_T > 1e-6) {
-        draw_magnetosphere(target, screen_pos, body, radius);
+        sf::Vector2f sun_p = primary ? cam.world_to_screen(primary->pos) : sf::Vector2f(400, 300);
+        draw_magnetosphere(target, screen_pos, body, radius, sun_p);
     }
 }
 
 void BodyRenderer::draw_magnetosphere(sf::RenderTarget& t, sf::Vector2f pos,
-                                     const Body& b, float screen_radius) const
+                                     const Body& b, float screen_radius, sf::Vector2f sun_pos) const
 {
-    // The magnetosphere size scales with the field strength (log-ish)
-    // Range: 1e-6 to 10 Tesla
     double log_b = std::log10(std::max(1e-7, b.magnetic_field_T));
-    float strength_factor = static_cast<float>((log_b + 6.0) / 7.0); // 0 to 1
+    float strength_factor = static_cast<float>((log_b + 6.0) / 7.0); 
     strength_factor = std::clamp(strength_factor, 0.1f, 1.0f);
 
     float field_r = screen_radius * (1.5f + 3.0f * strength_factor);
     
-    // Multi-layered glow for "plasma" feel
-    sf::Color mag_color = sf::Color(100, 200, 255, static_cast<uint8_t>(40 * strength_factor));
+    // Aurora brightness
+    float aurora = b.render.aurora_intensity;
+    sf::Color mag_color = sf::Color(100, 200, 255, static_cast<uint8_t>((40 + 100 * aurora) * strength_factor));
     
+    // 1. Omnidirectional Glow
     for (int i = 0; i < 3; ++i) {
         float r = field_r * (1.0f - i * 0.2f);
         sf::CircleShape glow(r);
         glow.setOrigin(r, r);
         glow.setPosition(pos);
         
-        // Pulsate slightly with time
-        float pulse = 0.9f + 0.1f * std::sin(m_time * 2.0f + i);
+        float pulse = 0.9f + 0.1f * std::sin(m_time * 2.5f + i);
         glow.setScale(pulse, pulse);
         
         sf::Color c = mag_color;
         c.a = static_cast<uint8_t>(c.a / (i + 1));
         glow.setFillColor(c);
-        
         t.draw(glow, sf::BlendAdd);
+    }
+
+    // 2. Bow Shock Arc (Facing Sun)
+    if (aurora > 0.05f) {
+        sf::Vector2f to_sun = sun_pos - pos;
+        float angle = std::atan2(to_sun.y, to_sun.x);
+        float deg = angle * 180.0f / 3.14159f;
+
+        // Draw a thick arc represent the bow shock
+        float shock_r = field_r * 1.1f;
+        sf::VertexArray shock(sf::TriangleStrip, 20);
+        for (int i = 0; i < 10; ++i) {
+            float rel_a = (i - 4.5f) * 0.15f; // approx 45 degree spread
+            float x = std::cos(angle + rel_a);
+            float y = std::sin(angle + rel_a);
+            
+            sf::Color c = sf::Color(150, 220, 255, static_cast<uint8_t>(180 * aurora * (1.0f - std::abs(rel_a))));
+            shock[i*2] = sf::Vertex(pos + sf::Vector2f(x, y) * shock_r, c);
+            shock[i*2+1] = sf::Vertex(pos + sf::Vector2f(x, y) * (shock_r * 1.15f), sf::Color(c.r, c.g, c.b, 0));
+        }
+        t.draw(shock, sf::BlendAdd);
     }
 }
