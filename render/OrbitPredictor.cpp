@@ -15,7 +15,7 @@ void OrbitPredictor::update(const Simulation& sim, const std::string& target_id)
     if (target_id.empty()) return;
 
     // 1. Get snapshot — limit to top 20 bodies when many (avoids 300×RK4 with 10k bodies)
-    auto all_bodies = sim.bodies();
+    const auto& all_bodies = sim.bodies();
     std::vector<Body> bodies;
 
     const Body* target_ptr = nullptr;
