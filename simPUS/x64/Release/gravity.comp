@@ -1,0 +1,49 @@
+#version 430 core
+
+// =============================================================================
+//  physics/gravity.comp — GPU-accelerated O(N^2) Gravity Solver
+// =============================================================================
+
+layout(local_size_x = 256) in;
+
+struct BodyData {
+    vec2  pos;
+    vec2  vel;
+    vec2  accel;
+    float mass;
+    int   alive;
+    int   is_passive;
+    int   kind;
+    float radius;
+};
+
+layout(std430, binding = 0) buffer BodiesBuffer {
+    BodyData bodies[];
+};
+
+layout(location = 0) uniform int   u_num_bodies;
+layout(location = 1) uniform float u_G;
+layout(location = 2) uniform float u_softening2;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= u_num_bodies) return;
+    if (bodies[i].alive == 0) return;
+
+    vec2 pos_i = bodies[i].pos;
+    vec2 total_accel = vec2(0.0);
+
+    // Brute-force O(N^2) but massive parallel
+    for (int j = 0; j < u_num_bodies; ++j) {
+        if (i == uint(j)) continue;
+        if (bodies[j].alive == 0 || bodies[j].is_passive == 1) continue;
+
+        vec2 r_ij = bodies[j].pos - pos_i;
+        float dist2 = r_ij.x * r_ij.x + r_ij.y * r_ij.y + u_softening2;
+        float inv_dist3 = 1.0 / (dist2 * sqrt(dist2));
+        
+        total_accel += r_ij * (u_G * bodies[j].mass * inv_dist3);
+    }
+
+    bodies[i].accel = total_accel;
+}

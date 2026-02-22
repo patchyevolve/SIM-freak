@@ -1,0 +1,24 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path="../app/AddBodyDialog.cpp" />
+    <File Path="../app/AppLoop.cpp" />
+    <File Path="../app/InputHandler.cpp" />
+    <File Path="../domain/Body.cpp" />
+    <File Path="../io/State.cpp" />
+    <File Path="../main.cpp" />
+    <File Path="../math/Vec2.cpp" />
+    <File Path="../physics/Gravity.cpp" />
+    <File Path="../physics/Integrators.cpp" />
+    <File Path="../render/BodyRenderer.cpp" />
+    <File Path="../render/Camera.cpp" />
+    <File Path="../render/HUD.cpp" />
+    <File Path="../render/TrailSystem.cpp" />
+    <File Path="../sim/Presets.cpp" />
+    <File Path="../sim/Simulation.cpp" />
+  </Folder>
+  <Project Path="simPUS.vcxproj" Id="7deaa5f9-5c75-486c-947b-08a80ea642da" />
+</Solution>

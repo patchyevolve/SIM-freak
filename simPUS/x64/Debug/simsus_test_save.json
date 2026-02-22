@@ -1,0 +1,278 @@
+{
+  "bodies": [
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "sun",
+      "kind": "Star",
+      "mass_kg": 1.989e+30,
+      "name": "Sun",
+      "pos": {
+        "x": 1051.586117612401,
+        "y": 2.330839594314691
+      },
+      "radius_m": 695700000.0,
+      "render": {
+        "atmosphere_color": 0,
+        "base_radius_px": 12.0,
+        "color": 4292621055,
+        "draw_label": true,
+        "draw_trail": false,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": 0.02434183200782034,
+        "y": 8.09274754950984e-05
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "mercury",
+      "kind": "Planet",
+      "mass_kg": 3.301e+23,
+      "name": "Mercury",
+      "pos": {
+        "x": 57762313325.414116,
+        "y": 4133213055.2858458
+      },
+      "radius_m": 2440000.0,
+      "render": {
+        "atmosphere_color": 0,
+        "base_radius_px": 3.0,
+        "color": 2846468607,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -3417.2191981269325,
+        "y": 47756.71764057625
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "venus",
+      "kind": "Planet",
+      "mass_kg": 4.867e+24,
+      "name": "Venus",
+      "pos": {
+        "x": 108157681059.77608,
+        "y": 3025963840.6469502
+      },
+      "radius_m": 6052000.0,
+      "render": {
+        "atmosphere_color": 4294940280,
+        "base_radius_px": 4.0,
+        "color": 3870576895,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -979.541237685106,
+        "y": 35013.59627634233
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "earth",
+      "kind": "Planet",
+      "mass_kg": 5.972e+24,
+      "name": "Earth",
+      "pos": {
+        "x": 149577861285.68353,
+        "y": 2573633925.2908506
+      },
+      "radius_m": 6371000.0,
+      "render": {
+        "atmosphere_color": 1690894260,
+        "base_radius_px": 4.0,
+        "color": 846776575,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -512.4575981938912,
+        "y": 29784.490916191404
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "mars",
+      "kind": "Planet",
+      "mass_kg": 6.417e+23,
+      "name": "Mars",
+      "pos": {
+        "x": 227890461378.92294,
+        "y": 2085238678.2228806
+      },
+      "radius_m": 3390000.0,
+      "render": {
+        "atmosphere_color": 4284756560,
+        "base_radius_px": 3.5,
+        "color": 3025152255,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -220.79987338914933,
+        "y": 24134.033465444
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "jupiter",
+      "kind": "Planet",
+      "mass_kg": 1.898e+27,
+      "name": "Jupiter",
+      "pos": {
+        "x": 778299182353.8503,
+        "y": 1128392856.3955119
+      },
+      "radius_m": 71490000.0,
+      "render": {
+        "atmosphere_color": 4292646460,
+        "base_radius_px": 8.0,
+        "color": 3365954815,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -18.926990909825918,
+        "y": 13060.093365258
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "saturn",
+      "kind": "Planet",
+      "mass_kg": 5.683e+26,
+      "name": "Saturn",
+      "pos": {
+        "x": 1426999755560.8608,
+        "y": 833339532.1833763
+      },
+      "radius_m": 60270000.0,
+      "render": {
+        "atmosphere_color": 3535700520,
+        "base_radius_px": 7.0,
+        "color": 3535700735,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": true,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -5.6583132343916684,
+        "y": 9645.132386848405
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "uranus",
+      "kind": "Planet",
+      "mass_kg": 8.681e+25,
+      "name": "Uranus",
+      "pos": {
+        "x": 2870999939719.9385,
+        "y": 587512886.0005289
+      },
+      "radius_m": 25560000.0,
+      "render": {
+        "atmosphere_color": 2533359420,
+        "base_radius_px": 5.5,
+        "color": 2531059455,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -1.3953718044456918,
+        "y": 6799.917569175388
+      }
+    },
+    {
+      "extra": {},
+      "flags": {
+        "immovable": false,
+        "no_collide": false
+      },
+      "id": "neptune",
+      "kind": "Planet",
+      "mass_kg": 1.0239999999999999e+26,
+      "name": "Neptune",
+      "pos": {
+        "x": 4497999975451.91,
+        "y": 469379663.69542164
+      },
+      "radius_m": 24760000.0,
+      "render": {
+        "atmosphere_color": 1685651260,
+        "base_radius_px": 5.5,
+        "color": 1011927295,
+        "draw_label": true,
+        "draw_trail": true,
+        "has_rings": false,
+        "ring_color": 2863311496
+      },
+      "vel": {
+        "x": -0.5682428192074603,
+        "y": 5432.634977712791
+      }
+    }
+  ],
+  "schema_version": 1,
+  "sim": {
+    "config": {
+      "G": 6.6743e-11,
+      "base_dt_s": 3600.0,
+      "integrator": "RK4",
+      "softening_m": 1000000.0,
+      "sub_steps": 8
+    },
+    "paused": false,
+    "sim_time_s": 86400.0,
+    "time_warp": 1.0
+  }
+}

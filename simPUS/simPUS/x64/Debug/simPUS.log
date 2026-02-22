@@ -1,0 +1,25 @@
+﻿  AddBodyDialog.cpp
+  AppLoop.cpp
+  BodyEditorPanel.cpp
+  InputHandler.cpp
+  Body.cpp
+  State.cpp
+  main.cpp
+  Vec2.cpp
+  BarnesHut.cpp
+  Gravity.cpp
+  Integrators.cpp
+  BodyRenderer.cpp
+  Camera.cpp
+  GridRenderer.cpp
+  GLHelper.cpp
+  HUD.cpp
+  OrbitPredictor.cpp
+  TrailSystem.cpp
+  Presets.cpp
+  Simulation.cpp
+  Generating Code...
+  Compiling...
+  StellarEvolution.cpp
+  Generating Code...
+  simPUS.vcxproj -> D:\codeWorks\simPUS\simPUS\x64\Debug\simPUS.exe
