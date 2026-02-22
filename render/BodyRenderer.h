@@ -68,6 +68,8 @@ private:
                   const Body& b, const Body& primary, const Camera& cam) const;
     void draw_black_hole(sf::RenderTarget& t, sf::Vector2f pos,
                          const Body& b, float screen_radius) const;
+    void draw_magnetosphere(sf::RenderTarget& t, sf::Vector2f pos,
+                            const Body& b, float screen_radius) const;
 
     // Phase 25: Per-kind visual routines
     void draw_star(sf::RenderTarget& t, sf::Vector2f pos,

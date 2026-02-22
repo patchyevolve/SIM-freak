@@ -71,7 +71,7 @@ void BodyEditorPanel::apply_kind_preset(Body& b, BodyKind k)
 
 void BodyEditorPanel::draw_panel(sf::RenderTarget& t, float x, float y, float w, const std::string& title)
 {
-    sf::RectangleShape bg(sf::Vector2f(w, 420.0f));
+    sf::RectangleShape bg(sf::Vector2f(w, 600.0f));
     bg.setPosition(x, y);
     bg.setFillColor(sf::Color(12, 14, 28, 240));
     bg.setOutlineColor(sf::Color(70, 90, 140, 220));
@@ -173,8 +173,12 @@ bool BodyEditorPanel::handle_event(const sf::Event& event, sf::RenderWindow& win
             }
 
             // Sliders — use y-positions cached by draw()
-            if (m_slider_y0 > 0.0f && hit_slider(pos.x, pos.y, m_slider_bar_tl.x, m_slider_y0, 0)) { m_dragging_slider = 0; return true; }
-            if (m_slider_y1 > 0.0f && hit_slider(pos.x, pos.y, m_slider_bar_tl.x, m_slider_y1, 1)) { m_dragging_slider = 1; return true; }
+            for (int i = 0; i < 6; ++i) {
+                if (m_slider_y[i] > 0.0f && hit_slider(pos.x, pos.y, m_slider_bar_tl.x, m_slider_y[i], i)) {
+                    m_dragging_slider = i;
+                    return true;
+                }
+            }
 
             return true; // Clicked on panel background, consume it
         }
@@ -197,10 +201,31 @@ bool BodyEditorPanel::handle_event(const sf::Event& event, sf::RenderWindow& win
             t = std::clamp(t, 0.0f, 1.0f);
             const double log_r_min = std::log(1.0e3), log_r_max = std::log(1.0e12);
             const double log_m_min = std::log(1.0e10), log_m_max = std::log(1.0e35);
+            const double log_t_min = std::log(100.0), log_t_max = std::log(50000.0);
+            const double log_b_min = std::log(1e-6), log_b_max = std::log(10.0);
+
             if (m_dragging_slider == 0)
                 body->radius_m = from_slider(static_cast<double>(t), log_r_min, log_r_max);
-            else
+            else if (m_dragging_slider == 1)
                 body->mass_kg = from_slider(static_cast<double>(t), log_m_min, log_m_max);
+            else if (m_dragging_slider == 2) {
+                body->temperature_K = from_slider(static_cast<double>(t), log_t_min, log_t_max);
+                if (body->kind == BodyKind::Star) {
+                    body->render.color = StellarEvolution::temperature_to_color(body->temperature_K);
+                }
+            }
+            else if (m_dragging_slider == 3) {
+                body->magnetic_field_T = from_slider(static_cast<double>(t), log_b_min, log_b_max);
+            }
+            else if (m_dragging_slider == 4) { // Comp 1
+                if (body->kind == BodyKind::Star) {
+                    body->composition.hydrogen = static_cast<float>(t);
+                    body->composition.helium = 1.0f - body->composition.hydrogen;
+                } else {
+                    body->composition.rock = static_cast<float>(t);
+                    body->composition.ice = 1.0f - body->composition.rock;
+                }
+            }
         }
         return true;
     }
@@ -298,16 +323,46 @@ void BodyEditorPanel::draw(sf::RenderTarget& target, Simulation& sim)
     float val_r = static_cast<float>(to_slider(body->radius_m, log_r_min, log_r_max));
     std::ostringstream rs;
     rs << std::scientific << std::setprecision(3) << body->radius_m;
-    m_slider_y0 = cy;  // Cache exact draw Y for hit-testing
+    m_slider_y[0] = cy;
     draw_slider(target, x + 10.0f, cy, val_r, "Radius (m)", rs.str());
     cy += 48.0f;
 
     float val_m = static_cast<float>(to_slider(body->mass_kg, log_m_min, log_m_max));
     std::ostringstream ms;
     ms << std::scientific << std::setprecision(3) << body->mass_kg;
-    m_slider_y1 = cy;  // Cache exact draw Y for hit-testing
+    m_slider_y[1] = cy;
     draw_slider(target, x + 10.0f, cy, val_m, "Mass (kg)", ms.str());
     cy += 48.0f;
+
+    // New Sliders
+    const double log_t_min = std::log(100.0), log_t_max = std::log(50000.0);
+    float val_t = static_cast<float>(to_slider(body->temperature_K, log_t_min, log_t_max));
+    std::ostringstream ts;
+    ts << std::fixed << std::setprecision(0) << body->temperature_K << " K";
+    m_slider_y[2] = cy;
+    draw_slider(target, x + 10.0f, cy, val_t, "Temperature (K)", ts.str());
+    cy += 48.0f;
+
+    const double log_b_min = std::log(1e-6), log_b_max = std::log(10.0);
+    float val_b = static_cast<float>(to_slider(body->magnetic_field_T, log_b_min, log_b_max));
+    std::ostringstream bs;
+    bs << std::scientific << std::setprecision(2) << body->magnetic_field_T << " T";
+    m_slider_y[3] = cy;
+    draw_slider(target, x + 10.0f, cy, val_b, "Magnetic Field (Tesla)", bs.str());
+    cy += 48.0f;
+
+    if (body->kind == BodyKind::Star || body->kind == BodyKind::Planet) {
+        float val_c = (body->kind == BodyKind::Star) ? body->composition.hydrogen : body->composition.rock;
+        std::ostringstream cs;
+        if (body->kind == BodyKind::Star) cs << "H: " << std::fixed << std::setprecision(1) << val_c * 100.0f << "%";
+        else cs << "Rock: " << std::fixed << std::setprecision(1) << val_c * 100.0f << "%";
+        m_slider_y[4] = cy;
+        draw_slider(target, x + 10.0f, cy, val_c, (body->kind == BodyKind::Star ? "Star: Hydrogen %" : "Planet: Rock %"), cs.str());
+        cy += 48.0f;
+    } else {
+        m_slider_y[4] = 0;
+    }
+    m_slider_y[5] = 0; // Unused for now
 
     m_panel_x = x;     // Cache for contains() in handle_event
 

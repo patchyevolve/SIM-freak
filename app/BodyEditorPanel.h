@@ -30,12 +30,11 @@ private:
     const sf::Font& m_font;
     std::string m_selected_id;
 
-    int  m_dragging_slider = -1;  // 0 = radius, 1 = mass, -1 = none
+    int  m_dragging_slider = -1;  // 0=rad, 1=mass, 2=temp, 3=mag, 4=comp1, 5=comp2
     sf::Vector2f m_slider_bar_tl;
     float m_slider_bar_w = 200.0f;
     float m_slider_bar_h = 12.0f;
-    float m_slider_y0    = 0.0f;  // Y position of radius slider (set during draw)
-    float m_slider_y1    = 0.0f;  // Y position of mass slider   (set during draw)
+    float m_slider_y[6]  = {0.0f}; // Y positions of sliders
     float m_panel_x      = 0.0f;  // X of panel left edge        (set during draw)
 
     static double log_lerp(double log_lo, double log_hi, double t);

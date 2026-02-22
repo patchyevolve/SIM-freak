@@ -83,6 +83,7 @@ struct RenderProps
     float    event_horizon_radius_m = 0.0f; 
     float    accretion_disk_radius_m = 0.0f;
     uint32_t disk_color        = 0xFFAA44FF; 
+    uint32_t magnetosphere_color = 0x64C8FF44; // Subtle blue glow
 
     bool has_atmosphere() const { return (atmosphere_color & 0xFF) > 0; }
 };
@@ -121,6 +122,7 @@ struct Body
     double        luminosity_L  = 1.0;                  ///< In Solar luminosities
     double        age_s         = 0.0;                  ///< Simulated age in seconds
     double        spin_deg      = 0.0;                  ///< Visual spin angle (asteroids/moons)
+    double        magnetic_field_T = 0.0;               ///< Magnetic field strength (Tesla)
 
     // Rendering & flags
     RenderProps render;

@@ -31,7 +31,7 @@ const char* stellar_class_str(StellarClass sc)
 }
 
 // ── Stellar temperature → color (blackbody approximation) ────────────────────
-static uint32_t temperature_to_color(double T_K)
+uint32_t temperature_to_color(double T_K)
 {
     // Very simplified Planckian locus approximation
     uint8_t r, g, b;

@@ -45,4 +45,7 @@ namespace StellarEvolution
 
     /// Get debug string for stellar stage
     const char* stellar_class_str(StellarClass sc);
+
+    /// Convert temperature to blackbody RGBA color
+    uint32_t temperature_to_color(double T_K);
 }
