@@ -77,39 +77,32 @@ void InputHandler::load_preset(PresetType p)
     
     // Default values
     m_trails.max_age_s = TrailSystem::DEFAULT_MAX_AGE_S; // 90 days
-    m_sim.set_time_warp(1.0);
+    m_sim.set_time_warp(5.0); // Reset to sane default
     double zoom = 4e9; // 4 million km (Solar System scale)
 
     switch (p)
     {
     case PresetType::SolarSystem:
         zoom = 8e9;
-        m_sim.set_time_warp(1.0); // 1s = 1s (realtime)
         break;
     case PresetType::BinaryStar:
         zoom = 1e11;
-        m_sim.set_time_warp(3600.0); // 1h per sec
         break;
     case PresetType::Figure8:
         zoom = 10.0;
-        m_sim.set_time_warp(1.0);
         break;
     case PresetType::BlackHole:
         zoom = 2e12;
-        m_sim.set_time_warp(3600.0 * 24.0); // 1 day per sec
         m_trails.max_age_s = 2.5 * 24.0 * 3600.0; // Shorter trails for BH
         break;
     case PresetType::Collision:
         zoom = 1e11;
-        m_sim.set_time_warp(3600.0 * 12.0);
         break;
     case PresetType::Nebula:
         zoom = 5e12;
-        m_sim.set_time_warp(3600.0 * 24.0 * 7.0); // 1 week per sec
         break;
     case PresetType::GalaxySmall:
         zoom = 1e13; // 10,000 AU scale
-        m_sim.set_time_warp(3600.0 * 24.0 * 365.0); // 1 year per sec
         break;
     }
 
