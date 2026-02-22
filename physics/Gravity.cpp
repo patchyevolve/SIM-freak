@@ -186,8 +186,13 @@ bool InitGPU()
 {
     if (!GLHelper::Init()) return false;
     
-    // Check multiple possible paths for the shader
-    const char* paths[] = { "physics/gravity.comp", "render/gravity.comp", "../physics/gravity.comp" };
+    // Check multiple possible paths for the shader (IDE vs. Exe folder)
+    const char* paths[] = { 
+        "physics/gravity.comp", 
+        "../physics/gravity.comp", 
+        "../../physics/gravity.comp",
+        "bin/physics/gravity.comp" 
+    };
     for (const char* p : paths) {
         g_compute_program = GLHelper::CreateComputeProgram(p);
         if (g_compute_program != 0) break;

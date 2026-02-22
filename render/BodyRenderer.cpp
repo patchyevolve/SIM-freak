@@ -271,12 +271,27 @@ void BodyRenderer::draw_all(sf::RenderTarget& target,
     float sh = static_cast<float>(screen_size.y);
     float margin = 50.0f; // Culling margin
 
-    // 3. Batch arrays for low-detail bodies (Particles as octagons)
-    sf::VertexArray particle_batch(sf::Triangles);
-    particle_batch.clear();
+    // 3. Batch arrays for low-detail bodies (Diamond stars)
+    // Optimization: Count stars first to avoid reallocations
+    size_t star_count = 0;
+    for (const auto& b : bodies) {
+        if (!b.alive) continue;
+        sf::Vector2f sp = cam.world_to_screen(b.pos);
+        float r = clamped_radius(b, cam);
+        if (sp.x < -margin || sp.x > sw + margin || sp.y < -margin || sp.y > sh + margin) continue;
+        bool is_selected = (b.id == selected_id);
+        bool is_large = (r > LOD_BATCH_THRESHOLD);
+        if (!(b.kind == BodyKind::BlackHole || is_selected || is_large)) {
+            star_count++;
+        }
+    }
 
-    // 4. Sort/Filter passes
+    sf::VertexArray diamond_batch(sf::Triangles, star_count * 6);
+    size_t v_idx = 0;
+
+    // 4. Render stars and collect high-detail list
     std::vector<const Body*> high_detail_list;
+    high_detail_list.reserve(128);
 
     for (const auto& b : bodies) {
         if (!b.alive) continue;
@@ -284,36 +299,33 @@ void BodyRenderer::draw_all(sf::RenderTarget& target,
         sf::Vector2f sp = cam.world_to_screen(b.pos);
         float r = clamped_radius(b, cam);
 
-        // Frustum Culling
         if (sp.x < -margin || sp.x > sw + margin ||
             sp.y < -margin || sp.y > sh + margin) continue;
 
         bool is_selected = (b.id == selected_id);
-        
-        // Stars and Black Holes are usually "high detail", but for 10,000 bodies
-        // we MUST batch the stars if they are tiny, or we drop to 1 FPS.
-        bool force_high_detail = (b.kind == BodyKind::BlackHole || is_selected);
         bool is_large = (r > LOD_BATCH_THRESHOLD);
 
-        if (force_high_detail || is_large) {
+        if (b.kind == BodyKind::BlackHole || is_selected || is_large) {
             high_detail_list.push_back(&b);
         } else {
             sf::Color color = body_color(b, cam);
             
-            // Speed optimization: Use 4-vertex diamonds (2 triangles) for low-detail stars
-            // instead of 8-vertex octagons. This reduces vertex count from 24 to 6 per body.
-            sf::Vector2f v_center = sp;
+            // Diamond geometry (2 triangles)
+            float rx = r; float ry = r;
             
-            // Triangle 1
-            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(0, -r), color));
-            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(r, 0), color));
-            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(-r, 0), color));
+            diamond_batch[v_idx + 0] = sf::Vertex(sp + sf::Vector2f(0, -ry), color);
+            diamond_batch[v_idx + 1] = sf::Vertex(sp + sf::Vector2f(rx, 0), color);
+            diamond_batch[v_idx + 2] = sf::Vertex(sp + sf::Vector2f(-rx, 0), color);
             
-            // Triangle 2
-            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(r, 0), color));
-            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(0, r), color));
-            particle_batch.append(sf::Vertex(v_center + sf::Vector2f(-r, 0), color));
+            diamond_batch[v_idx + 3] = sf::Vertex(sp + sf::Vector2f(rx, 0), color);
+            diamond_batch[v_idx + 4] = sf::Vertex(sp + sf::Vector2f(0, ry), color);
+            diamond_batch[v_idx + 5] = sf::Vertex(sp + sf::Vector2f(-rx, 0), color);
+            v_idx += 6;
         }
+    }
+
+    if (star_count > 0) {
+        target.draw(diamond_batch);
     }
 
     // 5. Execution
