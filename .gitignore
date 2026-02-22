@@ -1,4 +1,9 @@
+# Visual Studio
 .vs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
 bin/
 obj/
 out/
@@ -7,6 +12,18 @@ build/
 *.pdb
 *.user
 *.suo
+*.ilk
+*.aps
+*.ncb
+*.idb
+*.tlog
+*.lastbuildstate
+*.recipe
+
+# NuGet Packages
+packages/
+
+# Data
 *.json
 !README.md
 !simsus_test_save.json
