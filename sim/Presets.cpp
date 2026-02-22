@@ -395,7 +395,8 @@ std::vector<Body> make_galaxy_small(double G)
     // Central Supermassive Black Hole
     Body bh;
     bh.id = "core"; bh.name = "Galactic Core"; bh.kind = BodyKind::BlackHole;
-    bh.mass_kg = 4.0e38; bh.radius_m = 1.0e10;
+    bh.mass_kg = 2.0e37; // ~10 million solar masses (still huge, but smaller Rs)
+    bh.radius_m = 1.0e10;
     bh.pos = {}; bh.vel = {};
     bh.render = { 0x000000FF, 15.0f, false, true };
     bh.render.disk_color = 0xAA66FFFF; // Purple accretion glow
@@ -404,7 +405,9 @@ std::vector<Body> make_galaxy_small(double G)
     // 10,000 orbiting stars (passive for gravity, but affected by BH)
     // We use a simple spiral distribution
     for (int i = 0; i < 10000; ++i) {
-        double r = 2.0e11 + (double)(i % 500) * 1e9 + (double)(i / 500) * 5e10;
+        // Rs for 2e37 kg is ~3e10 m. 
+        // We start stars at 1.5e11 m (1 AU range) up to 2e12 m.
+        double r = 1.5e11 + (double)(i % 500) * 1e9 + (double)(i / 500) * 5e10;
         double angle = (double)i * 0.137; // Golden angle-ish spiral
         
         Body s;
