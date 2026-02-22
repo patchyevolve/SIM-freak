@@ -26,6 +26,7 @@ PFNGLDELETEPROGRAMPROC   glDeleteProgram   = nullptr;
 PFNGLGENBUFFERSPROC      glGenBuffers      = nullptr;
 PFNGLBINDBUFFERPROC      glBindBuffer      = nullptr;
 PFNGLBUFFERDATAPROC      glBufferData      = nullptr;
+PFNGLBUFFERSUBDATAPROC   glBufferSubData   = nullptr;
 PFNGLBINDBUFFERBASEPROC  glBindBufferBase  = nullptr;
 PFNGLDELETEBUFFERSPROC   glDeleteBuffers   = nullptr;
 PFNGLMAPBUFFERRANGEPROC  glMapBufferRange  = nullptr;
@@ -56,6 +57,7 @@ namespace GLHelper
         glGenBuffers      = (PFNGLGENBUFFERSPROC)wglGetProcAddress("glGenBuffers");
         glBindBuffer      = (PFNGLBINDBUFFERPROC)wglGetProcAddress("glBindBuffer");
         glBufferData      = (PFNGLBUFFERDATAPROC)wglGetProcAddress("glBufferData");
+        glBufferSubData   = (PFNGLBUFFERSUBDATAPROC)wglGetProcAddress("glBufferSubData");
         glBindBufferBase  = (PFNGLBINDBUFFERBASEPROC)wglGetProcAddress("glBindBufferBase");
         glDeleteBuffers   = (PFNGLDELETEBUFFERSPROC)wglGetProcAddress("glDeleteBuffers");
         glMapBufferRange  = (PFNGLMAPBUFFERRANGEPROC)wglGetProcAddress("glMapBufferRange");
@@ -64,7 +66,7 @@ namespace GLHelper
         glUniform1f       = (PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f");
         glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
 
-        if (!glDispatchCompute || !glMemoryBarrier || !glCreateShader || !glGenBuffers || !glMapBufferRange || !glUniform1f)
+        if (!glDispatchCompute || !glMemoryBarrier || !glCreateShader || !glGenBuffers || !glMapBufferRange || !glUniform1f || !glBufferSubData)
         {
             std::cerr << "[Error] GLHelper::Init failed. Required functions not found.\n";
             return false;
