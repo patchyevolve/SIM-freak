@@ -61,16 +61,12 @@ void Simulation::step_sim(double sim_dt_s)
     
     // Safety clamp: stable dt should be roughly 10% of the orbital timescale
     double safety_dt = std::max(1.0, min_tau * 0.1); 
+    
+    // For large GPU-simulations, we increase target_sub_dt to avoid 
+    // drowning the PCI-e bus with thousands of read-backs per frame.
+    double floor_dt = (nb > 5000) ? 3600.0 * 2.0 : 1.0; // 2 hour floor for galaxy
+    
     const double MAX_dt = 7200.0; // 2 hours
-    double target_sub_dt = std::min(MAX_dt, safety_dt);
-
-    int steps = static_cast<int>(std::ceil(sim_dt_s / target_sub_dt));
-    if (steps < m_cfg.sub_steps) steps = m_cfg.sub_steps;
-    if (steps < 1) steps = 1;
-
-    // Performance cap: with many bodies, limit sub-steps to keep frame time bounded
-    static constexpr int MAX_STEPS_SMALL_N = 1024;
-    static constexpr size_t LARGE_N_THRESHOLD = 800;
     int step_cap = (nb > LARGE_N_THRESHOLD) ? 32 : MAX_STEPS_SMALL_N;
     if (steps > step_cap) steps = step_cap;
 
