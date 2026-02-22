@@ -4,6 +4,7 @@
 
 #include "HUD.h"
 #include "../physics/Gravity.h"
+#include "../sim/StellarEvolution.h"
 #include <sstream>
 #include <iomanip>
 #include <cmath>
@@ -99,6 +100,21 @@ void HUD::update(const Simulation& sim,
         oss << "Speed      " << format_num(selected_body->speed())   << " m/s\n";
         oss << "KE         " << format_num(selected_body->kinetic_energy()) << " J\n";
         oss << "g-surf     " << format_num(selected_body->surface_gravity(), 2) << " m/s²\n";
+
+        // Stellar Evolution Data
+        if (selected_body->kind == BodyKind::Star)
+        {
+            oss << "\n--- STELLAR EVOLUTION ---\n";
+            oss << "Class      " << StellarEvolution::stellar_class_str(selected_body->stellar_class) << "\n";
+            oss << "Temp       " << std::fixed << std::setprecision(0) << selected_body->temperature_K << " K\n";
+            
+            double age_billion_yr = selected_body->age_s / (365.25 * 24.0 * 3600.0 * 1e9);
+            oss << "Age        " << std::fixed << std::setprecision(3) << age_billion_yr << " Gyr\n";
+            
+            oss << "Hydrogen   " << std::fixed << std::setprecision(1) << selected_body->composition.hydrogen * 100.0f << " %\n";
+            oss << "Helium     " << std::fixed << std::setprecision(1) << selected_body->composition.helium * 100.0f << " %\n";
+        }
+        
         m_selected_text = oss.str();
     }
 

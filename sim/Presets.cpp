@@ -33,6 +33,7 @@ const char* preset_name(PresetType p)
     case PresetType::Collision:   return "CollisionTest";
     case PresetType::Nebula:      return "Nebula";
     case PresetType::GalaxySmall: return "GalaxySmall";
+    case PresetType::StellarDeath: return "StellarDeath";
     default:                      return "Unknown";
     }
 }
@@ -45,6 +46,7 @@ PresetType preset_from_str(const std::string& s)
     if (s == "CollisionTest") return PresetType::Collision;
     if (s == "Nebula")     return PresetType::Nebula;
     if (s == "GalaxySmall") return PresetType::GalaxySmall;
+    if (s == "StellarDeath") return PresetType::StellarDeath;
     return PresetType::SolarSystem;
 }
 
@@ -62,6 +64,7 @@ std::vector<Body> make(PresetType type, double G)
     case PresetType::Collision:   return make_collision(G);
     case PresetType::Nebula:      return make_nebula(G);
     case PresetType::GalaxySmall: return make_galaxy_small(G);
+    case PresetType::StellarDeath: return make_stellar_death(G);
     default:                      return make_solar_system(G);
     }
 }
@@ -432,6 +435,43 @@ std::vector<Body> make_galaxy_small(double G)
         s.render = { rgb(180 + (i % 75), 200 + (i % 55), 255), 1.2f, false, false };
         bodies.push_back(s);
     }
+    return bodies;
+}
+
+std::vector<Body> make_stellar_death(double G)
+{
+    std::vector<Body> bodies;
+
+    // A star at the VERY END of its main sequence life
+    Body star;
+    star.id = "dying_star";
+    star.name = "Dying Giant";
+    star.kind = BodyKind::Star;
+    star.mass_kg = 2.0e30; // 1 Solar mass
+    star.radius_m = 6.957e8;
+    star.pos = { 0, 0 };
+    star.vel = { 0, 0 };
+    star.render = { rgb(255, 100, 50), 15.0f, false, true };
+    
+    // Set age to 10 billion years and hydrogen to just above depletion threshold
+    star.age_s = 10.0 * 365.25 * 24.0 * 3600.0 * 1e9;
+    star.composition.hydrogen = 0.035f; // Threshold is 0.03f
+    star.composition.helium = 0.95f;
+    star.stellar_class = StellarClass::MainSequence;
+    star.temperature_K = 6500.0;
+    
+    bodies.push_back(star);
+
+    // Add a nearby planet to see how it gets consumed or ejected
+    Body p;
+    p.id = "victim"; p.name = "Inner Planet"; p.kind = BodyKind::Planet;
+    p.mass_kg = 5.97e24; p.radius_m = 6.37e6;
+    double r = 1.5e11; // 1 AU
+    p.pos = { r, 0 };
+    p.vel = { 0, std::sqrt(G * star.mass_kg / r) };
+    p.render = { rgb(100, 200, 255), 5.0f, true, true };
+    bodies.push_back(p);
+
     return bodies;
 }
 

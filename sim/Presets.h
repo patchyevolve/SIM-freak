@@ -15,7 +15,8 @@ enum class PresetType : uint8_t
     BlackHole   = 3,
     Collision   = 4,
     Nebula      = 5,
-    GalaxySmall = 6
+    GalaxySmall = 6,
+    StellarDeath = 7
 };
 
 const char* preset_name(PresetType p);
@@ -33,6 +34,7 @@ namespace Presets
     std::vector<Body> make_collision  (double G = 6.6743e-11);
     std::vector<Body> make_nebula     (double G = 6.6743e-11);
     std::vector<Body> make_galaxy_small(double G = 6.6743e-11);
+    std::vector<Body> make_stellar_death(double G = 6.6743e-11);
 
     bool RunTests();
 }
