@@ -41,6 +41,7 @@ namespace Gravity
     bool InitGPU();
     void Cleanup();
     bool IsGpuReady();
+    bool LastStepWasGpu();
 
     bool RunTests();
 }

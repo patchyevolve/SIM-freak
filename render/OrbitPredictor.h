@@ -17,6 +17,9 @@ public:
     /// Run a shadow simulation to predict the path of 'target_id'
     void update(const Simulation& sim, const std::string& target_id);
 
+    /// Run a shadow simulation for a hypothetical body at pos/vel
+    void update_preview(const Simulation& sim, Vec2 pos, Vec2 vel);
+
     /// Draw the predicted path
     void draw(sf::RenderTarget& target, const Camera& cam) const;
 

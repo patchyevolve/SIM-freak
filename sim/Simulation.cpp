@@ -50,8 +50,10 @@ void Simulation::step_sim(double sim_dt_s)
 
     if (!source_idx.empty()) {
         for (size_t i : source_idx) {
-            // For large N, we only check a subset of 'j' to avoid O(N^2)
-            size_t step = (nb > 2000) ? nb / 100 : 1; 
+            // Adaptive sampling for time-step safety:
+            // For large simulations (especially in Debug), we sample a subset of body-pairs
+            // to estimate the minimum safety time-scale (tau).
+            size_t step = (nb > 500) ? nb / 50 : 1; 
             for (size_t j = 0; j < nb; j += step) {
                 if (i == j || !m_bodies[j].alive) continue;
                 Vec2 d = m_bodies[i].pos - m_bodies[j].pos;
@@ -74,8 +76,15 @@ void Simulation::step_sim(double sim_dt_s)
     // Force Evaluation Budget:
     // In Debug mode or with high body counts, the overhead of RK4 (4x copies per step)
     // and GPU readback (1x sync per evaluation) will hang the main thread if steps > 128.
-    // For large N, we cap much more aggressively to maintain UI responsiveness.
-    int max_steps = (nb > 2500) ? 16 : 128;
+    // For large N or GPU-active sims, we cap much more aggressively.
+    int max_steps = 128;
+    if (nb > 2500 || (nb >= 512 && Gravity::IsGpuReady())) {
+        max_steps = 16; 
+    }
+    if (nb > 10000) {
+        max_steps = 4; // Extreme cap for mega-scale simulations (Galaxy)
+    }
+    
     if (steps > max_steps) steps = max_steps;
     
     double sub_dt = sim_dt_s / static_cast<double>(steps);
@@ -91,6 +100,24 @@ void Simulation::step_sim(double sim_dt_s)
     for (size_t i = 0; i < nb; ++i)
         if (m_bodies[i].alive && m_bodies[i].kind == BodyKind::BlackHole)
             bh_indices.push_back(i);
+
+    // Hoist disruptor collection once per step_sim call
+    std::vector<DisruptorInfo> disruptors;
+    disruptors.reserve(8);
+
+    for (size_t i = 0; i < nb; ++i) {
+        const auto& d = m_bodies[i];
+        if (d.alive && (d.kind == BodyKind::Star || d.kind == BodyKind::BlackHole)) {
+            double roche_limit = 0.0;
+            if (d.kind == BodyKind::BlackHole) {
+                double Rs = (2.0 * m_cfg.G * d.mass_kg) / c2;
+                roche_limit = Rs * 12.0;
+            } else {
+                roche_limit = d.radius_m * 2.5;
+            }
+            disruptors.push_back({ i, roche_limit * roche_limit });
+        }
+    }
 
     for (int s = 0; s < steps; ++s)
     {
@@ -108,11 +135,11 @@ void Simulation::step_sim(double sim_dt_s)
             // 2. Gravitational Dilation (Schwarzschild)
             for (size_t idx : bh_indices) {
                 const auto& other = m_bodies[idx];
-                double dist = b.dist_to(other);
+                double dist_sq = b.pos.dist_sq_to(other.pos);
                 double Rs = (2.0 * m_cfg.G * other.mass_kg) / c2;
                 
-                if (dist > Rs) {
-                    double grav_scale = std::sqrt(1.0 - Rs / dist);
+                if (dist_sq > Rs * Rs) {
+                    double grav_scale = std::sqrt(1.0 - Rs / std::sqrt(dist_sq));
                     drag_factor *= grav_scale;
                 } else {
                     drag_factor = 0.0;
@@ -123,6 +150,7 @@ void Simulation::step_sim(double sim_dt_s)
 
         Integrators::step(m_bodies, sub_dt, m_cfg.G, m_cfg.softening_m, m_cfg.integrator);
         resolve_collisions();
+        check_tidal_disruption(disruptors);
 
         // Phase 25D: Event Horizon Consumption
         for (auto& b : m_bodies)
@@ -131,7 +159,9 @@ void Simulation::step_sim(double sim_dt_s)
             for (size_t idx : bh_indices)
             {
                 const auto& bh = m_bodies[idx];
-                if (b.dist_to(bh) < (2.0 * m_cfg.G * bh.mass_kg / c2) * 0.9)
+                double dist_sq = b.pos.dist_sq_to(bh.pos);
+                double Rs = (2.0 * m_cfg.G * bh.mass_kg / c2);
+                if (dist_sq < (Rs * Rs * 0.81)) // (Rs * 0.9)^2
                 {
                     b.alive = false;
                     events.on_bh_absorption.emit({ b.id, bh.id });
@@ -148,6 +178,11 @@ void Simulation::step_sim(double sim_dt_s)
                             std::make_move_iterator(m_pending_bodies.end()));
             m_pending_bodies.clear();
         }
+    }
+
+    // Final acceleration update for HUD and diagnostics (once per frame instead of once per sub-step)
+    if (!m_bodies.empty()) {
+        Gravity::compute_accelerations(m_bodies, m_cfg.G, m_cfg.softening_m);
     }
 
     // ── 2. NaN Firewall ──────────────────────────────────────────────────────
@@ -234,6 +269,70 @@ void Simulation::resolve_collisions()
     } else {
         // Spatial Hash for large heavy counts (e.g. 1000 planets)
         // [Existing Grid Logic would go here if needed, but H < 128 covers most presets]
+    }
+}
+
+void Simulation::check_tidal_disruption(const std::vector<DisruptorInfo>& disruptors)
+{
+    if (disruptors.empty()) {
+        for (auto& b : m_bodies) b.tidal_stress = 0.0;
+        return;
+    }
+
+    // 2. Check each body against disruptors using squared distance (avoids sqrt)
+    for (size_t i = 0; i < m_bodies.size(); ++i) {
+        Body& b = m_bodies[i];
+        if (!b.alive || b.kind == BodyKind::Star || b.kind == BodyKind::BlackHole || b.flags.immovable) {
+            b.tidal_stress = 0.0;
+            continue;
+        }
+
+        double max_stress = 0.0;
+        for (const auto& d_info : disruptors) {
+            const Body& d = m_bodies[d_info.index];
+            if (i == d_info.index) continue;
+
+            Vec2 diff = b.pos - d.pos;
+            double dist_sq = diff.x*diff.x + diff.y*diff.y;
+
+            // Stress = RocheLimit^2 / dist^2
+            double stress = d_info.limit_sq / std::max(1e-10, dist_sq);
+            if (stress > max_stress) max_stress = stress;
+
+            if (dist_sq < d_info.limit_sq) {
+                // TRIGGER DISRUPTION
+                b.alive = false;
+                events.on_collision.emit({ b, d }); 
+                
+                int num_frags = 16;
+                double frag_mass = (b.mass_kg * 0.75) / num_frags; 
+                double frag_radius = b.radius_m * 0.2;
+
+                Vec2 dir = b.vel.normalized();
+                Vec2 tang = { -dir.y, dir.x };
+
+                for (int k = 0; k < num_frags; ++k) {
+                    Body f = b;
+                    f.id = b.id + "_tidal_" + std::to_string(m_step_count) + "_" + std::to_string(k);
+                    f.name = (b.kind == BodyKind::Planet) ? "Asteroid" : "Dust";
+                    f.kind = (b.kind == BodyKind::Planet) ? BodyKind::Asteroid : BodyKind::Custom;
+                    f.mass_kg = frag_mass;
+                    f.radius_m = frag_radius;
+                    f.flags.is_passive = true;
+                    f.tidal_stress = 0.0;
+                    
+                    double spread = (k - num_frags/2.0) * (b.radius_m * 1.5);
+                    f.pos = b.pos + dir * spread;
+                    
+                    double kick = (static_cast<double>(rand() % 1000) - 500.0);
+                    f.vel = b.vel + tang * kick;
+
+                    m_pending_bodies.push_back(std::move(f));
+                }
+                break; 
+            }
+        }
+        b.tidal_stress = std::sqrt(max_stress); // Linearize stress for HUD/Thermodynamics
     }
 }
 

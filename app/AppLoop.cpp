@@ -213,7 +213,7 @@ void AppLoop::render_frame()
     m_scene_texture.clear(sf::Color(4, 4, 12));
 
     // Draw Nebula Background
-    if (sf::Shader::isAvailable()) {
+    if (sf::Shader::isAvailable() && m_nebula_shader.getNativeHandle() != 0) {
         m_nebula_shader.setUniform("time", m_clock.getElapsedTime().asSeconds());
         m_nebula_shader.setUniform("resolution", sf::Vector2f(static_cast<float>(m_window_size.x), static_cast<float>(m_window_size.y)));
         m_nebula_shader.setUniform("cam_pos", sf::Glsl::Vec2(static_cast<float>(m_cam.center().x), static_cast<float>(m_cam.center().y)));
@@ -245,7 +245,7 @@ void AppLoop::render_frame()
         }
     }
 
-    if (bh && sf::Shader::isAvailable()) {
+    if (bh && sf::Shader::isAvailable() && m_lensing_shader.getNativeHandle() != 0) {
         sf::Vector2f screen_pos = m_cam.world_to_screen(bh->pos);
         // Normalise to [0,1] for shader UVs
         sf::Vector2f uv_pos(screen_pos.x / m_window_size.x, 1.0f - (screen_pos.y / m_window_size.y));
@@ -268,7 +268,7 @@ void AppLoop::render_frame()
     }
 
     // 3. Multi-Pass Bloom (Threshold -> Blur H -> Blur V -> Additive Composite)
-    if (sf::Shader::isAvailable()) {
+    if (sf::Shader::isAvailable() && m_bloom_shader.getNativeHandle() != 0 && m_blur_shader.getNativeHandle() != 0) {
         // Step A: Extraction (Threshold)
         m_bloom_texture.clear(sf::Color::Transparent);
         m_bloom_shader.setUniform("texture", sf::Shader::CurrentTexture);
@@ -384,7 +384,7 @@ void AppLoop::run()
         }
 
         // ── Continuous input (pan drag) ───────────────────────────────────────
-        m_input.update(m_window);
+        m_input.update(m_window, m_orbit_predictor);
 
         // ── Camera follow ─────────────────────────────────────────────────────
         m_cam.update_follow();

@@ -395,6 +395,7 @@ std::vector<Body> make_nebula(double G)
         p.mass_kg = 1e20; // light
         p.radius_m = 5e6;
         p.pos = { r * std::cos(angle), r * std::sin(angle) };
+        p.temperature_K = 150.0; // Cold interstellar dust
         
         double v = std::sqrt(G * star.mass_kg / r);
         p.vel = { -v * std::sin(angle), v * std::cos(angle) };

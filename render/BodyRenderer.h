@@ -38,7 +38,7 @@ public:
     static constexpr float MAX_RADIUS_PX       = 60.0f; // cap when zoomed in
     static constexpr float HALO_SCALE          = 1.35f;  // selection ring is 35% larger
     static constexpr float VEL_ARROW_SCALE     = 3e-4f;  // metres/s → screen pixels
-    static constexpr float LOD_BATCH_THRESHOLD = 4.0f;   // px: below this, bodies are batched quads
+    static constexpr float LOD_BATCH_THRESHOLD = 12.0f;  // px: below this, bodies are batched diamonds
 
 private:
     const sf::Font& m_font;

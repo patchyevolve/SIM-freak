@@ -290,54 +290,55 @@ void InputHandler::on_left_drag_end(sf::Vector2f screen_pos)
 {
     Vec2 start_world = m_cam.screen_to_world(m_launch_start);
     
-    // Slingshot logic: Pull back to fire. 
-    // Screen delta: start -> current
-    // We want World velocity: pull_back_vector * scale
-    // Note: World Y is inverted relative to screen Y.
+    // Reverted Slingshot logic: Pull back to fire. 
     double dx = static_cast<double>(m_launch_start.x - screen_pos.x);
-    double dy = static_cast<double>(screen_pos.y - m_launch_start.y); // Flipped screen delta
+    double dy = static_cast<double>(screen_pos.y - m_launch_start.y); 
     
-    // Calibrated multiplier: 800 m/s per screen pixel drag.
-    // Significant buff to allow interplanetary/escape speeds more easily.
+    // Restored calibrated multiplier: 800 m/s per screen pixel drag.
     Vec2 velocity(dx * 800.0, dy * 800.0);
 
     Body b;
     b.id = "spawned_" + std::to_string(std::rand());
     b.name = "Asteroid";
-    b.kind = BodyKind::Custom;
-    b.mass_kg = 7.347e22; // Moon mass ish
-    b.radius_m = 1.737e6; // Moon radius
+    b.kind = BodyKind::Asteroid;
+    b.mass_kg = 1.0e20; 
+    b.radius_m = 5.0e5; 
     b.pos = start_world;
     b.vel = velocity;
-    b.render.color = 0x888888FF;
-    b.render.base_radius_px = 8.0f;
+    b.temperature_K = 200.0; // Sane starting temperature
+    b.render.color = 0xAAAAAAFF;
+    b.render.base_radius_px = 6.0f;
+    b.render.draw_trail = true;
+    b.render.draw_label = true;
     
     m_sim.add_body(b);
     m_launching = false;
+    
+    std::cout << "[Slingshot] Launched Asteroid at " << velocity.norm() / 1000.0 << " km/s\n";
 }
 
 void InputHandler::draw_launch_preview(sf::RenderTarget& target, const sf::Font& font) const
 {
     if (!m_launching) return;
 
-    // Line from start to current (visual "pull')
+    // Line from start to current (visual "pull")
     sf::Vertex line[] = {
-        sf::Vertex(m_launch_start, sf::Color::Green),
-        sf::Vertex(m_launch_end,   sf::Color::Yellow)
+        sf::Vertex(m_launch_start, sf::Color(100, 255, 100, 180)),
+        sf::Vertex(m_launch_end,   sf::Color(255, 255, 100, 100))
     };
     target.draw(line, 2, sf::Lines);
 
     // Indicator of where the body will fire
     sf::Vector2f fire_vec = m_launch_start - m_launch_end;
     sf::Vertex arrow[] = {
-        sf::Vertex(m_launch_start, sf::Color::Red),
-        sf::Vertex(m_launch_start + fire_vec, sf::Color(255, 0, 0, 100))
+        sf::Vertex(m_launch_start, sf::Color(255, 100, 100, 200)),
+        sf::Vertex(m_launch_start + fire_vec, sf::Color(255, 0, 0, 50))
     };
     target.draw(arrow, 2, sf::Lines);
 
     // Velocity Text Overlay
     double dx = static_cast<double>(m_launch_start.x - m_launch_end.x);
-    double dy = static_cast<double>(m_launch_start.y - m_launch_end.y);
+    double dy = static_cast<double>(m_launch_end.y - m_launch_start.y); 
     double speed_ms = std::sqrt(dx*dx + dy*dy) * 800.0;
     
     std::ostringstream oss;
@@ -347,20 +348,20 @@ void InputHandler::draw_launch_preview(sf::RenderTarget& target, const sf::Font&
     else
         oss << std::setprecision(2) << (speed_ms / 1000.0) << " km/s";
 
-    sf::Text txt(oss.str(), font, 16);
-    txt.setFillColor(sf::Color::Cyan);
+    sf::Text txt(oss.str(), font, 14);
+    txt.setFillColor(sf::Color(100, 255, 255));
     txt.setOutlineColor(sf::Color::Black);
     txt.setOutlineThickness(1.0f);
     // Position text above the mouse cursor
-    txt.setPosition(m_launch_end.x + 10.f, m_launch_end.y - 30.f);
+    txt.setPosition(m_launch_end.x + 12.f, m_launch_end.y - 24.f);
     target.draw(txt);
 
-    // Dotted circle at start to show spawn point
-    sf::CircleShape start(5.0f);
-    start.setOrigin(5.f, 5.f);
+    // Preview circle at start to show spawn point
+    sf::CircleShape start(6.0f);
+    start.setOrigin(6.f, 6.f);
     start.setPosition(m_launch_start);
-    start.setFillColor(sf::Color::Transparent);
-    start.setOutlineColor(sf::Color::Green);
+    start.setFillColor(sf::Color(170, 170, 170, 150));
+    start.setOutlineColor(sf::Color::White);
     start.setOutlineThickness(1.0f);
     target.draw(start);
 }
@@ -374,7 +375,7 @@ std::optional<Vec2> InputHandler::take_place_at()
     return out;
 }
 
-void InputHandler::update(sf::RenderWindow& window)
+void InputHandler::update(sf::RenderWindow& window, OrbitPredictor& orbits)
 {
     if (m_panning)
     {
@@ -388,5 +389,16 @@ void InputHandler::update(sf::RenderWindow& window)
     if (m_launching)
     {
         m_launch_end = static_cast<sf::Vector2f>(sf::Mouse::getPosition(window));
+        
+        // Update orbit prediction for the hypothetical launch
+        Vec2 start_world = m_cam.screen_to_world(m_launch_start);
+        
+        double dx = static_cast<double>(m_launch_start.x - m_launch_end.x);
+        double dy = static_cast<double>(m_launch_end.y - m_launch_start.y); 
+        
+        // Restored fixed multiplier for consistency
+        Vec2 velocity(dx * 800.0, dy * 800.0);
+        
+        orbits.update_preview(m_sim, start_world, velocity);
     }
 }

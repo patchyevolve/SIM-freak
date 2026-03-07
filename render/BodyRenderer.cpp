@@ -188,7 +188,7 @@ void BodyRenderer::draw_atmosphere(sf::RenderTarget& t, sf::Vector2f pos,
 
     // Multiple layers for soft scattering
     // Outer glow
-    if (m_atmos_shader) {
+    if (m_atmos_shader && m_atmos_shader->getNativeHandle() != 0) {
         float atmos_r = screen_radius * 1.5f; 
         m_atmos_shader->setUniform("time", m_time);
         m_atmos_shader->setUniform("atmos_color", sf::Glsl::Vec4(color));
@@ -408,7 +408,7 @@ void BodyRenderer::draw_black_hole(sf::RenderTarget& t, sf::Vector2f pos,
     }
 
     // 2. Accretion disk with shader (if available)
-    if (m_disk_shader) {
+    if (m_disk_shader && m_disk_shader->getNativeHandle() != 0) {
         m_disk_shader->setUniform("time", m_time);
         m_disk_shader->setUniform("base_color", sf::Glsl::Vec4(disk_color));
         m_disk_shader->setUniform("inner_radius", inner_r);
@@ -530,7 +530,7 @@ void BodyRenderer::draw(sf::RenderTarget& target,
         draw_selection_halo(target, screen_pos, radius);
 
     // 4. Main circle
-    if (body.kind == BodyKind::Star && m_star_shader && radius >= 5.0f) {
+    if (body.kind == BodyKind::Star && m_star_shader && m_star_shader->getNativeHandle() != 0 && radius >= 5.0f) {
         float expanded_r = radius * 1.5f; 
         
         static bool logged_sun = false;

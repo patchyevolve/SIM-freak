@@ -178,7 +178,9 @@ static std::vector<size_t> collect_star_hosts(const std::vector<Body>& bodies)
     std::vector<size_t> idx;
     idx.reserve(8);
     for (size_t i = 0; i < bodies.size(); ++i)
-        if (bodies[i].alive && bodies[i].kind == BodyKind::Star)
+        // Optimization: only consider non-passive stars as "hosts" for solar forces
+        // to prevent O(N^2) hangs in large-scale (10k+) simulations like Galaxy/Nebula.
+        if (bodies[i].alive && bodies[i].kind == BodyKind::Star && !bodies[i].flags.is_passive)
             idx.push_back(i);
     return idx;
 }
@@ -217,7 +219,10 @@ static std::vector<Derivative> eval_derivatives(
         shadow_bodies[i].radius_m  = base[i].radius_m;
         shadow_bodies[i].magnetic_field_T = base[i].magnetic_field_T;
         shadow_bodies[i].solar_wind_power = base[i].solar_wind_power;
+        shadow_bodies[i].radiation_pressure = base[i].radiation_pressure;
         shadow_bodies[i].kind      = base[i].kind;
+        shadow_bodies[i].flags     = base[i].flags;
+        shadow_bodies[i].local_time_scale = base[i].local_time_scale;
     }
 
     // Compute accelerations on shadow state
@@ -273,8 +278,6 @@ void step_rk4(std::vector<Body>& bodies,
                           
         bodies[i].proper_time_s += dt * bodies[i].local_time_scale;
     }
-    // Final acceleration update for diagnostics
-    Gravity::compute_accelerations(bodies, G, softening_m);
 }
 
 // ── Symplectic Euler ──────────────────────────────────────────────────────────
@@ -284,7 +287,6 @@ void step_rk4(std::vector<Body>& bodies,
 void step_symplectic_euler(std::vector<Body>& bodies,
                            double dt, double G, double softening_m)
 {
-    Gravity::compute_accelerations(bodies, G, softening_m);
     std::vector<size_t> atmos = collect_atmos_hosts(bodies);
     std::vector<size_t> stars = collect_star_hosts(bodies);
     for (auto& b : bodies)

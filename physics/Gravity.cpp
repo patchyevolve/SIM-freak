@@ -26,13 +26,14 @@ struct GpuBodyData {
     float magnetic_field_T;
     float radiation_pressure;
     float solar_wind_power;
-    float padding; // 64 bytes total (power of 2 alignment)
+    float padding[2]; // Explicitly 64 bytes (16 * 4) for std430 alignment
 };
 
 static GLuint g_compute_program = 0;
 static GLuint g_bodies_ssbo = 0;
 static size_t g_ssbo_capacity = 0;
 static bool   g_gpu_ready = false;
+static bool   g_last_step_gpu = false;
 static const int GPU_BODY_THRESHOLD = 512; // Lowered to leverage GPU earlier
 
 namespace Gravity
@@ -101,15 +102,22 @@ void compute_accelerations(std::vector<Body>& bodies,
     for (const auto& b : bodies) if (b.alive && !b.flags.is_passive) ++heavy_cnt;
 
     // Algorithm Selection:
-    // 1. GPU Compute (Optimized Tiled O(N²) on GPU) -> for N >= 512
-    // 2. Barnes-Hut (O(N log N) on CPU)              -> for N >= 768 (if GPU disabled)
-    // 3. Direct Sum (O(N²) on CPU)                   -> for small N
+    // 1. GPU Compute (Optimized Tiled O(N²) on GPU) -> for N >= 512 AND enough heavy bodies
+    // 2. Barnes-Hut (O(N log N) on CPU)              -> for N >= 768 (if GPU disabled/unsuitable)
+    // 3. Direct Sum (O(N * heavy_cnt) on CPU)        -> for small N or many passive bodies (Galaxy)
     
-    if (g_gpu_ready && (int)bodies.size() >= GPU_BODY_THRESHOLD)
+    // Optimization: GPU is O(N^2) even with passive bodies because of tiling.
+    // If we have 10k stars but only 1 heavy black hole, Direct Sum on CPU is O(N) and much faster.
+    bool gpu_suitable = g_gpu_ready && (int)bodies.size() >= GPU_BODY_THRESHOLD && heavy_cnt > 128;
+
+    if (gpu_suitable)
     {
         dispatch_gpu(bodies, G, softening_m);
+        g_last_step_gpu = true;
         return;
     }
+    
+    g_last_step_gpu = false;
 
     if (heavy_cnt >= BH_DIRECT_THRESHOLD)
     {
@@ -181,14 +189,14 @@ void dispatch_gpu(std::vector<Body>& bodies, double G, double softening_m)
             (float)b.vel.x, (float)b.vel.y,
             0.0f, 0.0f,
             (float)b.mass_kg,
-            b.alive ? 1 : 0,
+            b.alive ? (b.flags.immovable ? 2 : 1) : 0,
             b.flags.is_passive ? 1 : 0,
             (int)b.kind,
             (float)b.radius_m,
             (float)b.magnetic_field_T,
             (float)b.radiation_pressure,
             (float)b.solar_wind_power,
-            0.0f
+            { 0.0f, 0.0f }
         };
     }
     
@@ -230,6 +238,7 @@ bool InitGPU()
     // Check multiple possible paths for the shader (IDE vs. Exe folder)
     const char* paths[] = { 
         "physics/gravity.comp", 
+        "render/gravity.comp",    // Match the build script output folder
         "../physics/gravity.comp", 
         "../../physics/gravity.comp",
         "bin/physics/gravity.comp" 
@@ -252,7 +261,8 @@ bool InitGPU()
 void Cleanup()
 {
     if (g_compute_program) glDeleteProgram(g_compute_program);
-    if (g_bodies_ssbo) glDeleteBuffers(1, &g_bodies_ssbo);
+    if (g_bodies_ssbo)     glDeleteBuffers(1, &g_bodies_ssbo);
+    if (g_accel_ssbo)      glDeleteBuffers(1, &g_accel_ssbo);
     g_gpu_ready = false;
 }
 
@@ -373,5 +383,6 @@ bool RunTests()
 }
 
 bool IsGpuReady() { return g_gpu_ready; }
+bool LastStepWasGpu() { return g_last_step_gpu; }
 
 } // namespace Gravity

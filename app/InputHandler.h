@@ -34,7 +34,7 @@ public:
                              OrbitPredictor& orbits);
 
     /// Called every frame (for continuous middle-button drag)
-    void update(sf::RenderWindow& window);
+    void update(sf::RenderWindow& window, OrbitPredictor& orbits);
 
     /// Draw the launch vector arrow and velocity overlay if currently launching
     void draw_launch_preview(sf::RenderTarget& target, const sf::Font& font) const;

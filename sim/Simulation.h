@@ -83,6 +83,11 @@ private:
     PhysicsConfig      m_cfg;
 
     void resolve_collisions();
+    struct DisruptorInfo {
+        size_t index;
+        double limit_sq;
+    };
+    void check_tidal_disruption(const std::vector<DisruptorInfo>& disruptors);
     void fragment_body(const Body& b, Vec2 impact_vel, double impact_mass_kg);
     void sweep_dead_bodies();
 };

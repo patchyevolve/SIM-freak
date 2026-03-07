@@ -56,7 +56,7 @@ void HUD::update(const Simulation& sim,
         oss << "Time warp  " << std::setprecision(1) << sim.time_warp() << "x\n";
         oss << "Bodies     " << diag.body_count << "\n";
         oss << "Step       " << diag.step_count << "\n";
-        oss << "GPU Phys   " << (Gravity::IsGpuReady() ? "ON (GPU)" : "OFF (CPU)") << "\n";
+        oss << "GPU Phys   " << (Gravity::LastStepWasGpu() ? "ON (GPU)" : "OFF (CPU)") << "\n";
 
         // Energy drift — guard against NaN/Inf; skip when energy not computed (n > 500)
         if (diag.energy_valid && std::abs(initial_energy_J) > 1e-100)
@@ -101,26 +101,34 @@ void HUD::update(const Simulation& sim,
         oss << "KE         " << format_num(selected_body->kinetic_energy()) << " J\n";
         oss << "g-surf     " << format_num(selected_body->surface_gravity(), 2) << " m/s²\n";
 
-        // Stellar Evolution Data
-        if (selected_body->kind == BodyKind::Star)
+        // Phase 30: Thermodynamics & Tidal Stress
+        if (selected_body->kind != BodyKind::BlackHole)
         {
-            oss << "\n--- STELLAR EVOLUTION ---\n";
-            oss << "Class      " << StellarEvolution::stellar_class_str(selected_body->stellar_class) << "\n";
+            oss << "\n--- THERMODYNAMICS ---\n";
             oss << "Temp       " << std::fixed << std::setprecision(0) << selected_body->temperature_K << " K\n";
             
-            // Adaptive Age Display
-            double age = selected_body->age_yr;
-            oss << "Age        ";
-            if (age >= 1.0e9) {
-                oss << std::fixed << std::setprecision(3) << age / 1.0e9 << " Gyr\n";
-            } else if (age >= 1.0e6) {
-                oss << std::fixed << std::setprecision(1) << age / 1.0e6 << " Myr\n";
-            } else {
-                oss << std::fixed << std::setprecision(0) << age << " yr\n";
+            if (selected_body->tidal_stress > 0.01) {
+                oss << "Tidal Stress " << std::fixed << std::setprecision(1) << selected_body->tidal_stress * 100.0 << " %\n";
             }
-            
-            oss << "Hydrogen   " << std::fixed << std::setprecision(1) << selected_body->composition.hydrogen * 100.0f << " %\n";
-            oss << "Helium     " << std::fixed << std::setprecision(1) << selected_body->composition.helium * 100.0f << " %\n";
+
+            if (selected_body->kind == BodyKind::Star)
+            {
+                oss << "Class      " << StellarEvolution::stellar_class_str(selected_body->stellar_class) << "\n";
+                
+                // Adaptive Age Display
+                double age = selected_body->age_yr;
+                oss << "Age        ";
+                if (age >= 1.0e9) {
+                    oss << std::fixed << std::setprecision(3) << age / 1.0e9 << " Gyr\n";
+                } else if (age >= 1.0e6) {
+                    oss << std::fixed << std::setprecision(1) << age / 1.0e6 << " Myr\n";
+                } else {
+                    oss << std::fixed << std::setprecision(0) << age << " yr\n";
+                }
+                
+                oss << "Hydrogen   " << std::fixed << std::setprecision(1) << selected_body->composition.hydrogen * 100.0f << " %\n";
+                oss << "Helium     " << std::fixed << std::setprecision(1) << selected_body->composition.helium * 100.0f << " %\n";
+            }
         }
         
         m_selected_text = oss.str();

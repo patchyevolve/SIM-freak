@@ -89,6 +89,9 @@ You should see:
 - Space: Pause/Resume
 - Mouse Wheel: Zoom
 - Left Drag: Pan
+- **Right Click & Drag**: Slingshot Launch (fixed velocity multiplier)
+- **Tab**: Toggle HUD (shows Temp and Tidal Stress)
+- **F**: Follow selected body
 
 ---
 

@@ -35,7 +35,9 @@ namespace StellarEvolution
 
     /// Evolve a single body by `dt_s` seconds of simulation time.
     /// Returns true if the body's kind changed (triggers visual update).
-    bool tick(Body& b, double dt_s, double speed_mult = 1.0);
+    bool tick(Body& b, double dt_s, double speed_mult = 1.0, 
+              const std::vector<Body>& all_bodies = {},
+              const std::vector<size_t>& star_indices = {});
 
     /// Evolve all bodies in the simulation.
     void tick_all(std::vector<Body>& bodies, double dt_s, double speed_mult = 1.0);

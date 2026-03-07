@@ -64,6 +64,54 @@ void OrbitPredictor::update(const Simulation& sim, const std::string& target_id)
     }
 }
 
+void OrbitPredictor::update_preview(const Simulation& sim, Vec2 pos, Vec2 vel)
+{
+    m_path.clear();
+
+    // 1. Prepare virtual body
+    Body virtual_body;
+    virtual_body.id = "__preview__";
+    virtual_body.pos = pos;
+    virtual_body.vel = vel;
+    virtual_body.mass_kg = 1.0; // negligible mass
+    virtual_body.alive = true;
+
+    // 2. Get top 19 bodies by mass
+    const auto& all_bodies = sim.bodies();
+    std::vector<Body> bodies;
+    bodies.reserve(20);
+    bodies.push_back(virtual_body);
+
+    std::vector<const Body*> by_mass;
+    for (const auto& b : all_bodies)
+        if (b.alive) by_mass.push_back(&b);
+    
+    std::partial_sort(by_mass.begin(),
+                      by_mass.begin() + std::min<size_t>(19, by_mass.size()),
+                      by_mass.end(),
+                      [](const Body* a, const Body* b) { return a->mass_kg > b->mass_kg; });
+
+    for (size_t i = 0; i < 19 && i < by_mass.size(); ++i)
+        bodies.push_back(*by_mass[i]);
+
+    // 3. Shadow sim params
+    const double G = sim.config().G;
+    const double soft = sim.config().softening_m;
+    const double predict_duration = 3600.0 * 24.0 * 365.25; // 1 year
+    const int    max_points = 300;
+    const double dt = predict_duration / max_points;
+
+    // 4. Step forward
+    m_path.reserve(max_points);
+    m_path.push_back({ pos, 0.0 });
+
+    for (int i = 0; i < max_points; ++i)
+    {
+        Integrators::step(bodies, dt, G, soft, IntegratorType::RK4);
+        m_path.push_back({ bodies[0].pos, (i + 1) * dt });
+    }
+}
+
 void OrbitPredictor::draw(sf::RenderTarget& target, const Camera& cam) const
 {
     if (m_path.size() < 2) return;

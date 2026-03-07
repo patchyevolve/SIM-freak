@@ -119,13 +119,14 @@ struct Body
     // Phase 25: Composition & stellar state
     Composition   composition;                          ///< Elemental fractions
     StellarClass  stellar_class = StellarClass::None;   ///< For stars
-    double        temperature_K = 5778.0;               ///< Surface temperature (K)
-    double        luminosity_L  = 1.0;                  ///< In Solar luminosities
-    double        age_yr        = 0.0;                  ///&lt; Simulated age in years
+    double        temperature_K = 200.0;                ///< Surface temperature (K) - Default to sane value
+    double        luminosity_L  = 0.0;                  ///< In Solar luminosities - Default to 0
+    double        age_yr        = 0.0;                  ///< Simulated age in years
     double        spin_deg      = 0.0;                  ///< Visual spin angle (asteroids/moons)
     double        magnetic_field_T = 0.0;               ///< Magnetic field strength (Tesla)
     double        radiation_pressure = 0.0;             ///< For stars: Pa at 1 AU
     double        solar_wind_power   = 0.0;             ///< For stars: kg/s of mass loss
+    double        tidal_stress       = 0.0;             ///< 0..1 based on proximity to Roche limit
 
     // Rendering & flags
     RenderProps render;
