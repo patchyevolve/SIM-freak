@@ -20,6 +20,7 @@ DisableProgramGroupPage=yes
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
 OutputBaseFilename=simPUS_Setup
+OutputDir=releases
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

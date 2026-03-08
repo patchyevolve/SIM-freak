@@ -29,15 +29,15 @@ A high-performance, precision-focused gravitational simulation engine built with
 ## 🛠 Getting Started
 
 ### Installation (Windows)
-1. Download the latest `simPUS_Setup.exe` from the [Releases](https://github.com/user/simSUS/releases) page.
-2. Run the installer to bundle the executable, SFML DLLs, and shader assets.
+1. Navigate to the local [releases/](file:///d:/codeWorks/simPUS/releases) folder in the project root.
+2. Run `simPUS_Setup.exe` to install the simulation (includes SFML DLLs and shaders).
 3. Launch `simPUS` from your desktop or start menu.
 
 ### Building from Source (Developers)
 - **Compiler**: C++20 compatible (MSVC 2022+ recommended)
 - **Dependencies**: SFML 2.5.1+, OpenGL 4.3+
 - **Build System**: Visual Studio Solution included (`simPUS.slnx`)
-- **Distribution**: Use the included `simPUS_installer.iss` with [Inno Setup](https://jrsoftware.org/) to create your own installer.
+- **Distribution**: Use the included `simPUS_installer.iss` with [Inno Setup](https://jrsoftware.org/) to create your own installer. The generated installer will be placed in the [releases/](file:///d:/codeWorks/simPUS/releases) folder.
 
 ---
 
