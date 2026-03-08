@@ -34,4 +34,8 @@ private:
 
     std::vector<PathNode> m_path;
     sf::Color             m_line_color = sf::Color(255, 255, 255, 120);
+
+    // Performance throttling
+    sf::Clock m_update_timer;
+    static constexpr float UPDATE_INTERVAL_MS = 33.0f; // Update ~30 times per sec max
 };

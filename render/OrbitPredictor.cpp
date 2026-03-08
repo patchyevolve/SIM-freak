@@ -11,8 +11,18 @@ OrbitPredictor::OrbitPredictor() {}
 
 void OrbitPredictor::update(const Simulation& sim, const std::string& target_id)
 {
+    if (target_id.empty()) {
+        m_path.clear();
+        return;
+    }
+
+    // Performance Throttle: Only re-simulate if enough time has passed
+    if (m_update_timer.getElapsedTime().asMilliseconds() < UPDATE_INTERVAL_MS && !m_path.empty()) {
+        return;
+    }
+    m_update_timer.restart();
+
     m_path.clear();
-    if (target_id.empty()) return;
 
     // 1. Get snapshot — limit to top 20 bodies when many (avoids 300×RK4 with 10k bodies)
     const auto& all_bodies = sim.bodies();
@@ -49,9 +59,42 @@ void OrbitPredictor::update(const Simulation& sim, const std::string& target_id)
     // 2. Shadow sim params
     const double G = sim.config().G;
     const double soft = sim.config().softening_m;
-    const double predict_duration = 3600.0 * 24.0 * 365.25; // 1 year
-    const int    max_points = 300;
-    const double dt = predict_duration / max_points;
+    
+    // Adaptive prediction duration
+    double predict_duration = 3600.0 * 24.0 * 365.25; // 1 year default
+    
+    // Estimate orbital period to avoid "boxy" paths in tight orbits
+    double vel_mag = bodies[target_idx].vel.norm();
+    if (bodies.size() > 1 && vel_mag > 1e-3)
+    {
+        // Find most influential body (M/r^2)
+        double max_influence = 0;
+        double best_period = predict_duration;
+        
+        for (size_t i = 0; i < bodies.size(); ++i) {
+            if (i == target_idx) continue;
+            double d2 = (bodies[i].pos - bodies[target_idx].pos).norm_sq();
+            if (d2 < 1.0) continue;
+            
+            double influence = bodies[i].mass_kg / d2;
+            if (influence > max_influence) {
+                max_influence = influence;
+                // Keplerian period estimate: T = 2pi * sqrt(r^3 / GM)
+                double dist = std::sqrt(d2);
+                double period = 2.0 * 3.14159 * std::sqrt(std::pow(dist, 3) / (G * (bodies[i].mass_kg + bodies[target_idx].mass_kg)));
+                best_period = period;
+            }
+        }
+        // Show at most 2 orbits or 1 year, whichever is smaller
+        predict_duration = std::min(predict_duration, best_period * 2.0);
+        // But at least 1 day
+        predict_duration = std::max(predict_duration, 3600.0 * 24.0);
+    }
+
+    const int    max_points = 400; // Balanced resolution
+    const int    sub_steps  = 4;   // Reduced sub-steps for speed
+    const double dt_per_point = predict_duration / max_points;
+    const double dt_step = dt_per_point / sub_steps;
 
     // 3. Step forward
     m_path.reserve(max_points);
@@ -59,13 +102,21 @@ void OrbitPredictor::update(const Simulation& sim, const std::string& target_id)
 
     for (int i = 0; i < max_points; ++i)
     {
-        Integrators::step(bodies, dt, G, soft, IntegratorType::RK4);
-        m_path.push_back({ bodies[target_idx].pos, (i + 1) * dt });
+        for (int s = 0; s < sub_steps; ++s) {
+            Integrators::step(bodies, dt_step, G, soft, IntegratorType::RK4);
+        }
+        m_path.push_back({ bodies[target_idx].pos, (i + 1) * dt_per_point });
     }
 }
 
 void OrbitPredictor::update_preview(const Simulation& sim, Vec2 pos, Vec2 vel)
 {
+    // Performance Throttle: Only re-simulate if enough time has passed
+    if (m_update_timer.getElapsedTime().asMilliseconds() < UPDATE_INTERVAL_MS && !m_path.empty()) {
+        return;
+    }
+    m_update_timer.restart();
+
     m_path.clear();
 
     // 1. Prepare virtual body
@@ -97,9 +148,37 @@ void OrbitPredictor::update_preview(const Simulation& sim, Vec2 pos, Vec2 vel)
     // 3. Shadow sim params
     const double G = sim.config().G;
     const double soft = sim.config().softening_m;
-    const double predict_duration = 3600.0 * 24.0 * 365.25; // 1 year
-    const int    max_points = 300;
-    const double dt = predict_duration / max_points;
+    
+    // Adaptive prediction duration
+    double predict_duration = 3600.0 * 24.0 * 365.25; // 1 year default
+    
+    // Estimate orbital period to avoid "boxy" paths in tight orbits
+    double vel_mag = bodies[0].vel.norm();
+    if (bodies.size() > 1 && vel_mag > 1e-3)
+    {
+        double max_influence = 0;
+        double best_period = predict_duration;
+        
+        for (size_t i = 1; i < bodies.size(); ++i) { // Skip virtual body at index 0
+            double d2 = (bodies[i].pos - bodies[0].pos).norm_sq();
+            if (d2 < 1.0) continue;
+            
+            double influence = bodies[i].mass_kg / d2;
+            if (influence > max_influence) {
+                max_influence = influence;
+                double dist = std::sqrt(d2);
+                double period = 2.0 * 3.14159 * std::sqrt(std::pow(dist, 3) / (G * (bodies[i].mass_kg + bodies[0].mass_kg)));
+                best_period = period;
+            }
+        }
+        predict_duration = std::min(predict_duration, best_period * 2.0);
+        predict_duration = std::max(predict_duration, 3600.0 * 24.0);
+    }
+
+    const int    max_points = 400; // Balanced resolution
+    const int    sub_steps  = 4;   // Reduced sub-steps for speed
+    const double dt_per_point = predict_duration / max_points;
+    const double dt_step = dt_per_point / sub_steps;
 
     // 4. Step forward
     m_path.reserve(max_points);
@@ -107,8 +186,10 @@ void OrbitPredictor::update_preview(const Simulation& sim, Vec2 pos, Vec2 vel)
 
     for (int i = 0; i < max_points; ++i)
     {
-        Integrators::step(bodies, dt, G, soft, IntegratorType::RK4);
-        m_path.push_back({ bodies[0].pos, (i + 1) * dt });
+        for (int s = 0; s < sub_steps; ++s) {
+            Integrators::step(bodies, dt_step, G, soft, IntegratorType::RK4);
+        }
+        m_path.push_back({ bodies[0].pos, (i + 1) * dt_per_point });
     }
 }
 
