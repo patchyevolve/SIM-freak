@@ -29,34 +29,35 @@ A high-performance, precision-focused gravitational simulation engine built with
 ## 🛠 Getting Started
 
 ### Installation (Windows)
-1. Navigate to the local [releases/](file:///d:/codeWorks/simPUS/releases) folder in the project root.
+1. Open the local [releases/](file:///d:/codeWorks/simPUS/releases) folder in the project root.
 2. Run `simPUS_Setup.exe` to install the simulation (includes SFML DLLs and shaders).
-3. Launch `simPUS` from your desktop or start menu.
+3. Once installed, launch `simPUS` from your Desktop or Start Menu.
 
 ### Building from Source (Developers)
 - **Compiler**: C++20 compatible (MSVC 2022+ recommended)
 - **Dependencies**: SFML 2.5.1+, OpenGL 4.3+
 - **Build System**: Visual Studio Solution included (`simPUS.slnx`)
-- **Distribution**: Use the included `simPUS_installer.iss` with [Inno Setup](https://jrsoftware.org/) to create your own installer. The generated installer will be placed in the [releases/](file:///d:/codeWorks/simPUS/releases) folder.
+- **Distribution**: Use [Inno Setup](https://jrsoftware.org/) with the included [simPUS_installer.iss](file:///d:/codeWorks/simPUS/simPUS_installer.iss). The compiled installer is automatically placed in the `releases/` folder.
 
 ---
 
 ## 🎮 Controls & Interface
 
-Access the **Help Menu (H)** in-game for a full list of commands:
+The simulation features an enhanced **Help Menu (H)** with high-contrast headers and a full preset guide.
 
 | Key | Action |
 |:---:|:---|
-| **H** | Toggle enhanced Help Menu |
-| **Scroll** | Zoom In/Out |
-| **Mid-drag** | Pan Camera |
+| **H** | **Toggle Enhanced Help Menu** (Blue headers, bold text) |
+| **Scroll** | Precision Zoom (500 km/px to 100 AU/px) |
+| **Mid-drag** | Smooth Camera Pan |
+| **Left Click** | Select Body |
 | **Space** | Pause/Resume Simulation |
-| **[ / ]** | Adjust Time Warp (x0.25 to x4.0 multiplier) |
-| **1 - 8** | Load Presets (Solar System to Stellar Death) |
-| **F** | Follow selected body |
-| **C** | Clear all trails and orbital paths |
-| **A** | **Add Body Mode**: Click to place, click again to configure |
-| **S / L** | Quick Save/Load (`quicksave.json`) |
+| **[ / ]** | Adjust Time Warp (x0.25 to x1,000,000x multiplier) |
+| **1 - 8** | **Load Presets**: (Solar, Binary, Fig-8, BH, Collision, Nebula, Galaxy, Death) |
+| **F** | Focus/Follow selected body |
+| **C** | Clear all trails and orbit predictions |
+| **A** | **Add Body Mode**: Click to place a body; click again to edit properties |
+| **S / L** | Quick Save/Load simulation state |
 
 ---
 
@@ -66,6 +67,7 @@ The project follows a clean, modular architecture separating physics, simulation
 
 ```
 simSUS/
+├── releases/        # Local installer distribution folder
 ├── domain/          # Core data structures (Body, composition, properties)
 ├── math/            # Vector math utilities (Vec2)
 ├── physics/         # Gravity solvers and numerical integrators
@@ -97,6 +99,26 @@ simSUS/
 - **Stateless Physics**: Gravity and integrator functions are pure, operating on body vectors
 - **Decoupled Rendering**: Visualization is completely separate from physics simulation
 - **Event-Driven**: Collision and lifecycle events propagate through EventBus
+- **Performance Optimized**: 
+    - **Tiered LOD Batching**: Distant celestial bodies are batched into a single `VertexArray` for O(1) draw calls.
+    - **Squared-Distance Math**: Proximity checks eliminate costly `sqrt` operations across the physics engine.
+    - **Hoisted Lookups**: Simulation loops minimize redundant lookups by caching state references.
+    - **Robust Uniforms**: Every GLSL uniform update is validated via `getNativeHandle()` to prevent driver overhead.
+
+---
+
+## 🌌 Physics & Thermodynamics
+
+### Stable Thermodynamics Model
+`simSUS` utilizes an **Exponential Decay Model** for surface temperature transitions:
+$T_{new} = T_{target} + (T_{old} - T_{target}) \cdot e^{-dt/\tau}$
+
+This ensures perfectly stable temperature behavior even at extreme simulation speeds ($1,000,000x$), eliminating the oscillations common in linear transition models.
+
+### Tidal Stress & Heating
+Bodies passing within the **Roche Limit** of a more massive object experience tidal stress. This stress contributes to:
+- **Tidal Heating**: Internal friction converted to thermal energy.
+- **Disruption**: Bodies may fragment into smaller asteroids if stress exceeds the structural limit.
 
 ---
 
@@ -283,173 +305,6 @@ Multi-pass shader-based rendering system for cinematic visuals:
 **Stellar Death**
 - Star undergoing supernova collapse
 - Lifecycle transition demonstration
-
----
-
-## 🛠 Building from Scratch
-
-### Prerequisites
-
-**Required Software:**
-- Visual Studio 2019 or 2022 (with C++ desktop development workload)
-- Windows 10/11 (64-bit)
-- Git (for cloning repository)
-
-**Required Libraries:**
-- SFML 2.5+ (installed via NuGet)
-- OpenGL 4.3+ capable GPU
-
-### Build Steps
-
-**1. Clone the Repository**
-```bash
-git clone <repository-url>
-cd simPUS
-```
-
-**2. Open in Visual Studio**
-- Open `simPUS/simPUS.vcxproj` or `simPUS/simPUS.slnx`
-- Visual Studio will automatically restore NuGet packages (SFML)
-
-**3. Configure Build**
-- Select configuration: `Debug` or `Release`
-- Select platform: `x64` (recommended) or `Win32`
-- Ensure C++ language standard is set to C++20
-
-**4. Build**
-- Build → Build Solution (Ctrl+Shift+B)
-- Shaders will automatically copy to output directory
-
-**5. Run**
-- Debug → Start Debugging (F5) or Start Without Debugging (Ctrl+F5)
-
-### Command-Line Usage
-
-```bash
-# Launch GUI (default)
-simSUS.exe
-
-# Run unit tests
-simSUS.exe --test
-
-# CLI mode with preset
-simSUS.exe --preset solar
-simSUS.exe --preset binary
-simSUS.exe --preset figure8
-
-# Save/load simulation state
-simSUS.exe --save mysim.json
-simSUS.exe --load mysim.json
-```
-
----
-
-## 🎮 Controls
-
-### Camera
-- **Mouse Drag**: Pan camera
-- **Mouse Wheel**: Zoom in/out
-- **F**: Follow selected body
-- **Escape**: Release camera follow
-
-### Simulation
-- **Space**: Pause/Resume
-- **+/-**: Increase/decrease time warp
-- **R**: Reset to initial state
-- **C**: Clear all bodies
-
-### Body Selection
-- **Left Click**: Select body
-- **Right Click**: Deselect
-- **E**: Edit selected body properties
-- **Delete**: Remove selected body
-
-### UI
-- **Tab**: Toggle HUD
-- **G**: Toggle grid
-- **T**: Toggle trails
-- **H**: Show help
-
----
-
-## 📊 Performance Characteristics
-
-### Computational Complexity
-
-| Bodies | Direct Sum | Barnes-Hut | Frame Time (est.) |
-|--------|-----------|------------|-------------------|
-| 100    | O(10⁴)    | O(10²)     | < 1 ms            |
-| 1,000  | O(10⁶)    | O(10⁴)     | ~10 ms            |
-| 10,000 | O(10⁸)    | O(10⁵)     | ~1000 ms / ~100 ms|
-
-### Optimization Strategies
-
-- Sub-stepping: Multiple physics steps per frame for stability
-- LOD rendering: Batch small bodies, detailed shaders for large ones
-- Spatial culling: Skip off-screen bodies
-- Energy calculation caching: Skip for N > 500 bodies
-- Adaptive timestep: Configurable sub-steps and base dt
-
----
-
-## 🧪 Testing
-
-The project includes comprehensive unit tests for all major components:
-
-```bash
-simSUS.exe --test
-```
-
-**Test Coverage:**
-- `Vec2`: Vector math operations
-- `Body`: Physical properties and derived stats
-- `Gravity`: Force calculations and energy conservation
-- `Integrators`: Numerical accuracy and stability
-- `Simulation`: Step logic and collision handling
-- `Presets`: Initial condition generation
-- `IO`: JSON serialization/deserialization
-
----
-
-## 🐛 Troubleshooting
-
-**Shaders not loading**
-- Ensure shader files are in `render/` directory relative to executable
-- Check Visual Studio copies shaders to output directory (see .vcxproj)
-
-**SFML not found**
-- Restore NuGet packages in Visual Studio
-- Check `packages/` directory contains SFML_VS2019
-
-**Performance issues**
-- Reduce number of bodies
-- Switch to Barnes-Hut solver for large systems
-- Decrease sub-steps
-- Disable trails and post-processing effects
-
-**Simulation instability**
-- Increase sub-steps
-- Reduce time warp
-- Switch to RK4 or Verlet integrator
-- Check for extremely close bodies (increase softening)
-
----
-
-## 📚 Further Reading
-
-- [N-Body Problem](https://en.wikipedia.org/wiki/N-body_problem)
-- [Barnes-Hut Algorithm](https://en.wikipedia.org/wiki/Barnes%E2%80%93Hut_simulation)
-- [Runge-Kutta Methods](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods)
-- [Symplectic Integrators](https://en.wikipedia.org/wiki/Symplectic_integrator)
-- [Stellar Evolution](https://en.wikipedia.org/wiki/Stellar_evolution)
-- [Gravitational Lensing](https://en.wikipedia.org/wiki/Gravitational_lens)
-- [SFML Documentation](https://www.sfml-dev.org/documentation/)
-
----
-
-## 📄 License
-
-This project is open source. See repository for license details.
 
 ---
 
