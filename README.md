@@ -16,11 +16,47 @@ A high-performance, precision-focused gravitational simulation engine built with
 - **Thermodynamics & Tidal Heating**: Realistic temperature transitions and internal friction heating from gravitational stress
 - **Relativistic Effects**: Gravitational lensing, time dilation, and light bending near massive objects
 - **Cinematic Rendering**: Robust multi-pass shader pipeline with bloom, atmospheric effects, accretion disks, and procedural surfaces
-- **Interactive UI**: Real-time body editing, preset scenarios, camera controls, and diagnostic HUD with thermodynamics data
-- **Slingshot Tool**: Precision orbital insertion with visual prediction and fixed velocity multipliers for stability
+- **Interactive UI**: Real-time body editing, preset scenarios, camera controls, and an enhanced diagnostic HUD with bold headers and a full preset list
+- **Slingshot Tool**: Precision orbital insertion with visual prediction and calibrated fixed velocity multipliers for physical stability
+- **Tiered LOD Batching**: High-performance rendering system that batches distant stars into single vertex arrays while maintaining high-fidelity shaders for close-up objects
+- **Robust Distribution**: Ready-to-use Windows installer with full dependency management and automated setup
 - **Multiple Integrators**: Choose between RK4, Velocity Verlet, and Symplectic Euler for different accuracy/speed tradeoffs
 - **Save/Load System**: Persist and restore simulation states via JSON
-- **Comprehensive Presets**: Solar system, binary stars, figure-8 orbits, black holes, nebulae, and more
+- **Comprehensive Presets**: 8 built-in scenarios covering solar systems, binary stars, figure-8 orbits, black holes, nebulae, galaxies, and stellar evolution events
+
+---
+
+## 🛠 Getting Started
+
+### Installation (Windows)
+1. Download the latest `simPUS_Setup.exe` from the [Releases](https://github.com/user/simSUS/releases) page.
+2. Run the installer to bundle the executable, SFML DLLs, and shader assets.
+3. Launch `simPUS` from your desktop or start menu.
+
+### Building from Source (Developers)
+- **Compiler**: C++20 compatible (MSVC 2022+ recommended)
+- **Dependencies**: SFML 2.5.1+, OpenGL 4.3+
+- **Build System**: Visual Studio Solution included (`simPUS.slnx`)
+- **Distribution**: Use the included `simPUS_installer.iss` with [Inno Setup](https://jrsoftware.org/) to create your own installer.
+
+---
+
+## 🎮 Controls & Interface
+
+Access the **Help Menu (H)** in-game for a full list of commands:
+
+| Key | Action |
+|:---:|:---|
+| **H** | Toggle enhanced Help Menu |
+| **Scroll** | Zoom In/Out |
+| **Mid-drag** | Pan Camera |
+| **Space** | Pause/Resume Simulation |
+| **[ / ]** | Adjust Time Warp (x0.25 to x4.0 multiplier) |
+| **1 - 8** | Load Presets (Solar System to Stellar Death) |
+| **F** | Follow selected body |
+| **C** | Clear all trails and orbital paths |
+| **A** | **Add Body Mode**: Click to place, click again to configure |
+| **S / L** | Quick Save/Load (`quicksave.json`) |
 
 ---
 
