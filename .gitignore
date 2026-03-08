@@ -27,3 +27,7 @@ packages/
 *.json
 !README.md
 !simsus_test_save.json
+
+# Releases (Installer Output)
+!releases/
+!releases/*.exe
