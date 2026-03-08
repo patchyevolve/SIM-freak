@@ -103,8 +103,7 @@ std::optional<Body> AddBodyDialog::handle_event(const sf::Event& event)
             m_active_field = (m_active_field + 1) %
                              static_cast<int>(Field::COUNT);
         }
-        if (event.key.code == sf::Keyboard::Enter ||
-            event.key.code == sf::Keyboard::Return)
+        if (event.key.code == sf::Keyboard::Return || event.key.code == sf::Keyboard::Enter)
         {
             try
             {

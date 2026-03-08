@@ -71,9 +71,9 @@ private:
     // Starfield (dynamic parallax)
     struct Star {
         sf::Vector2f pos;     // Base position in screen space
-        float        radius;
+        float        radius = 0.0f;
         sf::Color    color;
-        float        depth;   // 0.0 to 1.0 (far to near)
+        float        depth = 0.0f;   // 0.0 to 1.0 (far to near)
     };
     std::vector<Star> m_stars;
     void generate_starfield(unsigned width, unsigned height);

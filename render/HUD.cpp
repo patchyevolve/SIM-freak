@@ -138,20 +138,27 @@ void HUD::update(const Simulation& sim,
     if (m_help_text.empty())
     {
         m_help_text =
-            "=== Controls ===\n"
-            "Scroll        Zoom\n"
-            "Mid-drag      Pan\n"
-            "Left click    Select\n"
+            "======= CONTROLS =======\n"
+            "Scroll        Zoom In/Out\n"
+            "Mid-drag      Pan Camera\n"
+            "Left click    Select Body\n"
             "Space         Pause/Resume\n"
-            "[ / ]         Warp x0.5 / x2\n"
-            "1 / 2 / 3 / 4 Solar/Binary/Fig-8/BH\n"
+            "[ / ]         Warp x0.25 / x4\n"
             "F             Follow selected\n"
-            "C             Clear all trails & orbit path\n"
-            "A             Place mode (then click to add body there)\n"
-            "              A again = add at default pos\n"
-            "              Right panel = edit selected body\n"
-            "S / L         Save / Load\n"
-            "H             Toggle this help\n";
+            "C             Clear trails\n"
+            "A             Add Body Mode\n"
+            "S / L         Quick Save/Load\n"
+            "H             Toggle Help\n"
+            "\n"
+            "======= PRESETS =======\n"
+            "1  Solar System\n"
+            "2  Binary Star\n"
+            "3  Figure-8 Orbit\n"
+            "4  Black Hole System\n"
+            "5  Collision Event\n"
+            "6  Nebula Cluster\n"
+            "7  Small Galaxy\n"
+            "8  Stellar Death\n";
     }
 }
 
@@ -187,18 +194,35 @@ void HUD::draw_panel(sf::RenderTarget& t,
     sf::RectangleShape panel({ finalW, finalH });
     panel.setPosition(x, y);
     panel.setFillColor(bg);
-    panel.setOutlineColor(sf::Color(60, 60, 80, 200));
-    panel.setOutlineThickness(1.0f);
+    panel.setOutlineColor(sf::Color(100, 100, 140, 200));
+    panel.setOutlineThickness(1.5f);
     t.draw(panel);
 
     // Text
     sf::Text txt;
     txt.setFont(m_font);
-    txt.setString(text);
     txt.setCharacterSize(FONT_SIZE);
-    txt.setFillColor(sf::Color(220, 220, 240));
-    txt.setPosition(x + 8.0f, y + 5.0f);
-    t.draw(txt);
+    
+    // Reuse stream and line string
+    ss.clear();
+    ss.str(text);
+    float curY = y + 5.0f;
+    while (std::getline(ss, line))
+    {
+        txt.setString(line);
+        txt.setPosition(x + 8.0f, curY);
+        
+        if (line.find("===") != std::string::npos) {
+            txt.setFillColor(sf::Color(100, 200, 255));
+            txt.setStyle(sf::Text::Bold);
+        } else {
+            txt.setFillColor(sf::Color(220, 220, 240));
+            txt.setStyle(sf::Text::Regular);
+        }
+        
+        t.draw(txt);
+        curY += LINE_H;
+    }
 }
 
 // ── Draw ───────────────────────────────────────────────────────────────────────

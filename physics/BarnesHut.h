@@ -21,7 +21,7 @@ struct BHNode
 {
     double cx = 0.0, cy = 0.0;   // Centre-of-mass position
     double mass = 0.0;            // Total mass in this cell
-    double x0, y0, x1, y1;       // Bounding box [x0,x1) × [y0,y1)
+    double x0 = 0.0, y0 = 0.0, x1 = 0.0, y1 = 0.0;       // Bounding box [x0,x1) × [y0,y1)
     double size = 0.0;            // Max(width, height) — for theta test
     int    children[4] = {-1,-1,-1,-1}; // Quadrant children: NW, NE, SW, SE
     int    body_idx = -1;         // Index into bodies array if leaf; -1 otherwise
